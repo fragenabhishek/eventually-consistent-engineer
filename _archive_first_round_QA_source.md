@@ -1,8 +1,3 @@
-Java Backend First-Round Interview – Question Bank with Answers (Based on Attached JD + Resume)
-Generated: 2026-02-27 14:01:50
-Author: M365 Copilot
-
-NOTE: Questions reflect the attached role description (Java 11/17, Spring Boot, microservices, SQL/NoSQL, testing, performance, CI/CD, Docker, security, observability) and your resume highlights (Kafka, modernization, cloud, automation, GenAI).
 
 === WHAT TO EXPECT IN ROUND 1 ===
 • Core Java (11/17): concurrency, collections, Streams, JVM memory/GC.
