@@ -15,7 +15,7 @@ public class SingletonExample {
     }
 
     public void showMessage() {
-        System.out.println("Hello from Singleton!");
+        System.out.println("Singleton!");
     }
 
     public static void main(String[] args) {
