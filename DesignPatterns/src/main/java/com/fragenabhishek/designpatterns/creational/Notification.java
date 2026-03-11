@@ -1,5 +1,9 @@
 package com.fragenabhishek.designpatterns.creational;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
+
 public interface Notification {
 
     void notifyUser();
@@ -32,15 +36,17 @@ class PushNotification implements Notification{
 
 class NotificationFactory{
 
+    private static Map<String, Supplier<Notification>> notificationMap = new HashMap<>();
+    static {
+        notificationMap.put("EMAIL", EmailNotification :: new);
+        notificationMap.put("PUSH", PushNotification :: new);
+        notificationMap.put("SMS", SMSNotification :: new);
+
+    }
+
     public static Notification createNotification(String type){
-        if(type.equals("EMAIL")){
-            return new EmailNotification();
-        }else if(type.equals("SMS")){
-            return new SMSNotification();
-        }else if(type.equals("PUSH")){
-            return new PushNotification();
-        }
-        return null;
+        Supplier<Notification> supplier = notificationMap.get(type);
+        return supplier != null ? supplier.get() : null;
     }
 }
 
