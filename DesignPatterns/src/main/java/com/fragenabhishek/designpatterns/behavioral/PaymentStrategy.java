@@ -44,4 +44,7 @@ class Main2{
 
 }
 
+//formatter txt pdf word
+//1) interface stargey 2) concrete for all strategy 3) context which to set 4) use in client
+
 
