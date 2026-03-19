@@ -1,54 +1,78 @@
-# Day 001 — Diagrams
+# Day 001 - Diagrams (TinyURL)
 
-## System Architecture
-
-```
-                          ┌──────────────────────────────────────────┐
-                          │              eventually-consistent.ly     │
-                          └──────────────────────────────────────────┘
-
-  ┌────────┐     POST /shorten       ┌───────────────┐     LPOP key     ┌──────────┐
-  │ Client │ ───────────────────────►│  Write Service│ ────────────────►│  KGS     │
-  └────────┘                         └───────┬───────┘                  │  Redis   │
-                                             │ INSERT                   └──────────┘
-                                             ▼
-                                      ┌───────────┐
-                                      │ PostgreSQL│
-                                      └───────────┘
-
-  ┌────────┐     GET /aB3kX          ┌───────────────┐   HIT  ┌──────────────┐
-  │ Client │ ───────────────────────►│Redirect Service│───────►│ Redis Cache  │
-  └────────┘                         └───────┬────────┘        └──────────────┘
-               302 Location: longUrl         │ MISS
-               ◄────────────────────         ▼
-                                      ┌───────────┐
-                                      │ PostgreSQL│
-                                      └─────┬─────┘
-                                            │ async event
-                                            ▼
-                                      ┌───────────┐   consume  ┌──────────────────┐
-                                      │   Kafka   │ ──────────►│ Analytics Service│
-                                      └───────────┘            └──────────────────┘
-```
-
-## Data Flow — Write
+## 1. System Architecture
 
 ```
-1. POST /shorten { longUrl }
-2. Validate URL
-3. LPOP shortKey from Redis KGS pool
-4. INSERT (shortKey, longUrl, userId, createdAt) → PostgreSQL
-5. SET cache[shortKey] = longUrl (TTL)
-6. Return { shortUrl: "https://short.ly/aB3kX" }
+                               +----------------------+
+                               |   tiny.ly Platform   |
+                               +----------------------+
+
+Client
+  |
+  v
++----------------+      +------------------+
+| CDN + WAF      | ---> | Load Balancer    |
++----------------+      +------------------+
+                               |
+              +----------------+----------------+
+              |                                 |
+              v                                 v
+     +------------------+              +------------------+
+     | URL Write Service|              | Redirect Service |
+     +--------+---------+              +--------+---------+
+              |                                 |
+      +-------+--------+                +-------+--------+
+      |                |                |                |
+      v                v                v                v
++-------------+  +-------------+  +-------------+  +--------------+
+| KGS + Redis |  | PostgreSQL  |  | Redis Cache |  | Kafka Topic  |
+| key pool    |  | primary     |  | key->long   |  | url.clicked  |
++-------------+  +------+------+  +------+------+  +------+-------+
+                        |                  |                |
+                        v                  |                v
+                 +-------------+           |        +---------------+
+                 | Read Replica| <---------+        | Analytics svc |
+                 +-------------+                    +-------+-------+
+                                                              |
+                                                              v
+                                                      +---------------+
+                                                      | OLAP / reports |
+                                                      +---------------+
 ```
 
-## Data Flow — Read
+## 2. Create Flow (Sequence)
 
 ```
-1. GET /aB3kX
-2. GET cache[aB3kX] → hit? → 302 redirect → done
-3. miss → SELECT longUrl FROM urls WHERE short_key = 'aB3kX'
-4. SET cache[aB3kX] = longUrl
-5. Publish { shortKey, timestamp, ip, userAgent } → Kafka
-6. 302 redirect
+1. Client -> Write Service: POST /api/v1/urls
+2. Write Service: validate URL, alias, expiry
+3. Write Service -> KGS Redis pool: POP shortKey
+4. Write Service -> PostgreSQL: INSERT mapping
+5. Write Service -> Redis Cache: SET shortKey -> longUrl
+6. Write Service -> Client: 201 with shortUrl
+```
+
+## 3. Redirect Flow (Sequence)
+
+```
+1. Client -> Redirect Service: GET /{shortKey}
+2. Redirect Service -> Redis: GET shortKey
+3. If cache hit: return 302 Location immediately
+4. If cache miss: Redirect Service -> DB: SELECT by shortKey
+5. If active mapping found: backfill Redis and return 302
+6. Redirect Service -> Kafka: publish click event (async)
+7. If not found/expired/deleted: return 404 or 410
+```
+
+## 4. Background Jobs
+
+```
+KGS refill worker:
+- Generates Base62 keys in batches
+- Pushes into Redis pool
+- Triggers alert if available keys below threshold
+
+Expiry cleanup worker:
+- Scans for expired URLs
+- Marks deleted/inactive
+- Removes stale cache keys
 ```

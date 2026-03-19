@@ -1,88 +1,194 @@
-# Day 001 — Design: URL Shortener
+# Day 001 - Design: URL Shortener (TinyURL)
 
-## High-Level Architecture
+## 1. High-Level Architecture
 
 ```
 Client
-  │
-  ▼
+       |
+       v
+[CDN/WAF]
+       |
+       v
 [Load Balancer]
-  │
-  ├──► [Write Service]  ──► [DB: PostgreSQL / Cassandra]
-  │           │
-  │           └──► [Cache: Redis]
-  │
-  └──► [Redirect Service] ──► [Cache: Redis] ──► [DB fallback]
+       |
+       +--> [URL Write Service] ----> [PostgreSQL Primary]
+       |             |                         |
+       |             +--> [Redis Cache]        +--> [Read Replicas]
+       |             |
+       |             +--> [KGS Service + Redis Key Pool]
+       |
+       +--> [Redirect Service] ----> [Redis Cache] ----> [DB Fallback]
+                                                        |
+                                                        +--> [Kafka: click events] --> [Analytics Consumers] --> [OLAP Store]
 ```
 
-## Core Components
+---
 
-### 1. URL Encoding (Short Key Generation)
+## 2. Services and Responsibilities
 
-- Generate a 6-character key using Base62 (`[a-zA-Z0-9]`) → 62^6 ≈ 56 billion combinations
-- **Option A — Counter + Base62:** Global auto-increment ID encoded to Base62. Simple but single-point-of-failure for counter.
-- **Option B — MD5/SHA-256 hash + truncation:** Hash the long URL, take first 6 chars. Risk of collision.
-- **Option C — Pre-generated key service (KGS):** Background service pre-generates keys and stores unused ones in a pool. Redirect service fetches from pool. No collision risk, fast.
+### URL Write Service
 
-> **Decision:** Use a Key Generation Service (KGS) with a key pool in Redis. Eliminates hot-increment bottleneck and avoids hash collisions.
+- Validates input URL and custom alias
+- Allocates short key (from KGS pool or custom alias)
+- Persists mapping in DB
+- Writes hot mapping to Redis cache
 
-### 2. Data Model
+### Redirect Service
 
-**urls table**
+- Handles `GET /{shortKey}` at high QPS
+- Fetches long URL from Redis first, DB fallback second
+- Returns `302` redirect
+- Emits click event asynchronously
+
+### KGS (Key Generation Service)
+
+- Pre-generates unique Base62 keys in batches
+- Pushes keys into Redis list/set pool
+- Write service pops one key per URL create request
+
+### Analytics Pipeline
+
+- Redirect service publishes click events to Kafka
+- Consumers aggregate by minute/day
+- Writes to analytics store without affecting redirect path latency
+
+---
+
+## 3. Key Generation Strategy
+
+### Candidate Approaches
+
+1. Counter + Base62
+- Easy implementation
+- Centralized counter can become bottleneck
+
+2. Hash(longUrl) + truncation
+- Deterministic for same URL
+- Collision handling required
+
+3. KGS pool (chosen)
+- Collision-free if generated from unique ID space
+- Very low create latency
+- Decouples key generation from write requests
+
+Capacity note:
+
+- Base62 keyspace for length 7: $62^7 \approx 3.5 \times 10^{12}$
+- Enough for long-term growth, with room for future scale
+
+---
+
+## 4. Data Model
+
+### Primary table: urls
 
 | Column | Type | Notes |
 |--------|------|-------|
-| short_key | VARCHAR(8) PK | The generated slug |
-| long_url | TEXT | Original URL |
-| user_id | UUID | Owner (nullable for anonymous) |
-| created_at | TIMESTAMP | |
-| expires_at | TIMESTAMP | NULL = never |
-| click_count | BIGINT | Updated async |
+| short_key | VARCHAR(12) PRIMARY KEY | Lookup key |
+| long_url | TEXT NOT NULL | Original destination |
+| created_at | TIMESTAMP NOT NULL | Creation timestamp |
+| expires_at | TIMESTAMP NULL | Optional TTL |
+| user_id | UUID NULL | Creator |
+| is_deleted | BOOLEAN DEFAULT FALSE | Soft delete |
 
-### 3. Read Path (Redirect)
+Indexes:
 
-1. Client hits `GET /aB3kX`
-2. Redirect Service checks **Redis cache** (TTL-based)
-3. Cache miss → query DB → populate cache → HTTP 301/302 redirect
-4. Use **302 (temporary)** not 301 to keep analytics accurate (301 is cached by browser)
+- PK index on `short_key`
+- Optional index on `user_id, created_at`
+- Optional partial index for active records (`is_deleted=false`)
 
-### 4. Write Path
+### Optional dedupe table (future)
 
-1. Client sends `POST /shorten { longUrl, customAlias?, ttl? }`
-2. Write Service validates URL (regex + optional DNS check)
-3. Fetch a pre-generated key from KGS pool (Redis `LPOP`)
-4. Insert into DB; write to cache
-5. Return short URL
+| Column | Type | Notes |
+|--------|------|-------|
+| url_hash | CHAR(64) PK | SHA-256 of normalized URL |
+| short_key | VARCHAR(12) | Existing mapping |
 
-### 5. Analytics (Async)
+---
 
-- On redirect, publish event to **Kafka** topic `url.clicked`
-- Analytics consumers aggregate click counts, geo, referrer
-- Written to separate analytics DB (ClickHouse / BigQuery) — does not slow down read path
+## 5. Request Flows
 
-## API Design
+### Create Short URL Flow
 
-```
-POST   /api/v1/shorten
-       Body: { "longUrl": "...", "alias": "custom" (opt), "ttlDays": 30 (opt) }
-       Response: { "shortUrl": "https://short.ly/aB3kX" }
+1. `POST /api/v1/urls` arrives at write service.
+2. Validate URL format and allowed domains.
+3. If custom alias exists, reserve alias with uniqueness check.
+4. Else pop key from KGS pool in Redis.
+5. Insert row in DB.
+6. Cache key->URL in Redis.
+7. Return short URL.
 
-GET    /{shortKey}
-       Response: 302 Location: <longUrl>
+### Redirect Flow
 
-DELETE /api/v1/{shortKey}    (authenticated)
+1. `GET /{shortKey}` arrives at redirect service.
+2. Redis lookup for short key.
+3. Cache hit: return `302` quickly.
+4. Cache miss: query DB primary/read replica.
+5. If found and active, backfill cache and return `302`.
+6. Emit click event asynchronously.
+7. If not found/expired/deleted, return `404/410`.
 
-GET    /api/v1/{shortKey}/stats
-       Response: { clicks, createdAt, expiresAt }
-```
+---
 
-## Database Choice
+## 6. Caching Strategy
 
-- **Primary store:** PostgreSQL (ACID for writes, simple to operate)
-- **If write throughput grows 10x:** Cassandra with `short_key` as partition key — O(1) reads
+- Redis value: long URL + expiry metadata
+- TTL aligned to URL expiry
+- Negative caching for invalid keys (short TTL) to protect DB
+- Use request coalescing or Redis lock on hot misses to avoid stampede
 
-## Caching Strategy
+---
 
-- Cache: Redis with LRU eviction
-- TTL in cache mirrors `expires_at` in DB
-- Cache ~20% of hot URLs → covers ~80% of traffic (Zipf distribution)
+## 7. Scalability Plan
+
+### Read scaling
+
+- Stateless redirect service behind load balancer
+- Horizontal scaling based on CPU/QPS
+- Redis cluster for cache throughput
+
+### Write scaling
+
+- Stateless write service horizontal scale
+- KGS worker shards to refill key pool
+- DB partitioning by short key prefix when table grows very large
+
+### Storage evolution
+
+- Start with PostgreSQL
+- Move to Cassandra/DynamoDB style storage when write throughput and global scale demand it
+
+---
+
+## 8. Reliability and Resilience
+
+- Multi-AZ deployment for services, Redis, and DB
+- Circuit breaker: if DB is degraded, continue serving cached URLs
+- Dead-letter queue for failed click events
+- Retry with exponential backoff for Kafka publish and analytics writes
+
+---
+
+## 9. Security and Abuse Controls
+
+- URL safety checks (malware/phishing blocklist)
+- Per-IP and per-user rate limiting on create APIs
+- Input validation and canonicalization to prevent parser bypass
+- Optional signed admin APIs for delete/disable operations
+
+---
+
+## 10. SLOs and Observability
+
+Suggested SLOs:
+
+- Redirect success rate: >= 99.99%
+- Redirect latency P99: < 10 ms (service)
+- Create latency P99: < 100 ms
+
+Key metrics:
+
+- Cache hit ratio
+- Redirect QPS and error rate
+- KGS pool depth and refill lag
+- Kafka lag for analytics consumers
