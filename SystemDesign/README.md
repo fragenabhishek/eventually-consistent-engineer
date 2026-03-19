@@ -19,7 +19,7 @@ SystemDesign/
 
 | Day | Topic | Category |
 |-----|-------|----------|
-| [001](./day-001/README.md) | URL Shortener | Web / Storage |
+| [001](./day-001-tiny-url/README.md) | URL Shortener (Tiny URL) | Web / Storage |
 
 ---
 
