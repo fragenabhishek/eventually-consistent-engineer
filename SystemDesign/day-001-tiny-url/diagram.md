@@ -2,77 +2,92 @@
 
 ## 1. System Architecture
 
-```
-                               +----------------------+
-                               |   tiny.ly Platform   |
-                               +----------------------+
+```mermaid
+flowchart TB
+  client[Client] --> waf[CDN + WAF]
+  waf --> lb[Load Balancer]
 
-Client
-  |
-  v
-+----------------+      +------------------+
-| CDN + WAF      | ---> | Load Balancer    |
-+----------------+      +------------------+
-                               |
-              +----------------+----------------+
-              |                                 |
-              v                                 v
-     +------------------+              +------------------+
-     | URL Write Service|              | Redirect Service |
-     +--------+---------+              +--------+---------+
-              |                                 |
-      +-------+--------+                +-------+--------+
-      |                |                |                |
-      v                v                v                v
-+-------------+  +-------------+  +-------------+  +--------------+
-| KGS + Redis |  | PostgreSQL  |  | Redis Cache |  | Kafka Topic  |
-| key pool    |  | primary     |  | key->long   |  | url.clicked  |
-+-------------+  +------+------+  +------+------+  +------+-------+
-                        |                  |                |
-                        v                  |                v
-                 +-------------+           |        +---------------+
-                 | Read Replica| <---------+        | Analytics svc |
-                 +-------------+                    +-------+-------+
-                                                              |
-                                                              v
-                                                      +---------------+
-                                                      | OLAP / reports |
-                                                      +---------------+
+  lb --> write[URL Write Service]
+  lb --> redirect[Redirect Service]
+
+  write --> kgs[KGS + Redis Key Pool]
+  write --> pg[(PostgreSQL Primary)]
+  write --> cache[(Redis Cache)]
+
+  redirect --> cache
+  redirect --> pg
+  pg --> replica[(Read Replica)]
+
+  redirect --> kafka[(Kafka Topic: url.clicked)]
+  kafka --> analytics[Analytics Service]
+  analytics --> olap[(OLAP / Reports)]
 ```
 
 ## 2. Create Flow (Sequence)
 
-```
-1. Client -> Write Service: POST /api/v1/urls
-2. Write Service: validate URL, alias, expiry
-3. Write Service -> KGS Redis pool: POP shortKey
-4. Write Service -> PostgreSQL: INSERT mapping
-5. Write Service -> Redis Cache: SET shortKey -> longUrl
-6. Write Service -> Client: 201 with shortUrl
+```mermaid
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant W as URL Write Service
+  participant K as KGS Redis Pool
+  participant P as PostgreSQL
+  participant R as Redis Cache
+
+  C->>W: POST /api/v1/urls
+  W->>W: Validate URL, alias, expiry
+  W->>K: POP shortKey
+  K-->>W: shortKey
+  W->>P: INSERT shortKey -> longUrl
+  P-->>W: OK
+  W->>R: SET shortKey -> longUrl
+  W-->>C: 201 Created (shortUrl)
 ```
 
 ## 3. Redirect Flow (Sequence)
 
-```
-1. Client -> Redirect Service: GET /{shortKey}
-2. Redirect Service -> Redis: GET shortKey
-3. If cache hit: return 302 Location immediately
-4. If cache miss: Redirect Service -> DB: SELECT by shortKey
-5. If active mapping found: backfill Redis and return 302
-6. Redirect Service -> Kafka: publish click event (async)
-7. If not found/expired/deleted: return 404 or 410
+```mermaid
+sequenceDiagram
+  autonumber
+  participant C as Client
+  participant S as Redirect Service
+  participant R as Redis Cache
+  participant P as PostgreSQL
+  participant K as Kafka
+
+  C->>S: GET /{shortKey}
+  S->>R: GET shortKey
+
+  alt Cache hit
+    R-->>S: longUrl
+    S-->>C: 302 Location: longUrl
+    S->>K: Publish click event (async)
+  else Cache miss
+    R-->>S: miss
+    S->>P: SELECT by shortKey
+    alt Active mapping found
+      P-->>S: longUrl
+      S->>R: SET shortKey -> longUrl
+      S-->>C: 302 Location: longUrl
+      S->>K: Publish click event (async)
+    else Not found or expired
+      P-->>S: no row / expired
+      S-->>C: 404 or 410
+    end
+  end
 ```
 
 ## 4. Background Jobs
 
-```
-KGS refill worker:
-- Generates Base62 keys in batches
-- Pushes into Redis pool
-- Triggers alert if available keys below threshold
+```mermaid
+flowchart LR
+  subgraph KGS_Refill_Worker
+    g1[Generate Base62 keys in batches] --> g2[Push keys to Redis pool]
+    g2 --> g3[Alert when pool depth low]
+  end
 
-Expiry cleanup worker:
-- Scans for expired URLs
-- Marks deleted/inactive
-- Removes stale cache keys
+  subgraph Expiry_Cleanup_Worker
+    e1[Scan expired URLs] --> e2[Mark deleted or inactive]
+    e2 --> e3[Remove stale cache keys]
+  end
 ```
