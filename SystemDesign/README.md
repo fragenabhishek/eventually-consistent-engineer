@@ -21,8 +21,8 @@ day-001-tiny-url/
 | Day | Folder | Topic | Category | Status |
 |-----|--------|-------|----------|--------|
 | 001 | [day-001-tiny-url](./day-001-tiny-url/README.md) | URL Shortener (TinyURL) | Web / Storage | ✅ Done |
-| 002 | [day-002-file-sharing](./day-002-file-sharing/README.md) | File Sharing System (Pastebin) | Web / Storage | 🔜 Up Next |
-| 003 | [day-003-dropbox](./day-003-dropbox/README.md) | Cloud Storage (Dropbox) | Storage / Sync | ⬜ Pending |
+| 002 | [day-002-file-sharing](./day-002-file-sharing/README.md) | File Sharing System (Pastebin) | Web / Storage | ✅ Done |
+| 003 | [day-003-dropbox](./day-003-dropbox/README.md) | Cloud Storage (Dropbox) | Storage / Sync | 🔜 Up Next |
 | 004 | [day-004-youtube](./day-004-youtube/README.md) | Video Streaming (YouTube) | Streaming / CDN | ⬜ Pending |
 | 005 | [day-005-netflix](./day-005-netflix/README.md) | Netflix (Streaming + CDN) | Streaming / CDN | ⬜ Pending |
 | 006 | [day-006-instagram](./day-006-instagram/README.md) | Instagram (Photo Feed) | Social / Feed | ⬜ Pending |
