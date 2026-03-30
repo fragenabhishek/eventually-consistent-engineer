@@ -11,14 +11,14 @@ A hands-on repository for learning and interview preparation covering **Java Des
 ├── src/main/java/com/fragenabhishek/designpatterns/
 │   ├── creational/       # Singleton, Factory, Builder, Abstract Factory, Prototype
 │   ├── behavioral/       # Observer, Strategy, Command, State, Template Method,
-│   │                       Memento, Chain of Responsibility, Visitor, Facade
-│   └── structural/       # Decorator, Adapter, Proxy, Composite, Flyweight
+│   │                       Memento, Chain of Responsibility, Visitor
+│   └── structural/       # Adapter, Composite, Decorator, Facade, Flyweight, Proxy
 │
 ├── SystemDesign/          # Daily system design practice (HLD)
 │   ├── day-001-tiny-url/
 │   └── day-002-file-sharing/
 │
-├── Design_Patterns.md               # Daily pattern log & index
+├── Design_Patterns.md               # Complete GoF pattern tracker (19/23 done)
 ├── LLD_Design_Patterns_Story.md     # All 23 GoF patterns explained as stories
 ├── HLD_Story.md                     # High-Level Design concepts & case studies
 ├── The_Backend_Story.md             # Full backend engineering revision guide
@@ -29,7 +29,7 @@ A hands-on repository for learning and interview preparation covering **Java Des
 
 ## Design Patterns — Java Implementations
 
-Each pattern is implemented with a small example and a `main()` method for quick testing.
+Each pattern lives in a single file with a detailed header comment (Intent, Problem, Solution, Structure, Real-world examples) and a runnable `main()` demo.
 
 ### Creational
 
@@ -71,7 +71,7 @@ Each pattern is implemented with a small example and a `main()` method for quick
 
 | Guide | What It Covers |
 |-------|---------------|
-| [Design_Patterns.md](Design_Patterns.md) | Daily pattern log — which pattern to study each day |
+| [Design_Patterns.md](Design_Patterns.md) | Complete GoF tracker — 19/23 done, 4 pending (Bridge, Iterator, Mediator, Interpreter) |
 | [LLD_Design_Patterns_Story.md](LLD_Design_Patterns_Story.md) | All 23 GoF patterns as stories with code sketches and real-world examples |
 | [HLD_Story.md](HLD_Story.md) | Scalability, caching, CAP theorem, message queues, 7 system design case studies |
 | [The_Backend_Story.md](The_Backend_Story.md) | 15-chapter backend guide: OOP, Collections, Java 8, Concurrency, Spring, Kafka, DBs, Docker/K8s, Cloud, GenAI |

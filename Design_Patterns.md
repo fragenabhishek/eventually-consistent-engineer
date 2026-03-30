@@ -9,7 +9,7 @@ Each pattern is in a single file with a `main()` demo and detailed comments expl
 
 ## All 23 GoF Patterns — Status
 
-### Creational (5/5)
+### Creational — 5/5 done
 
 | # | Pattern | File | Status |
 |---|---------|------|--------|
@@ -19,7 +19,7 @@ Each pattern is in a single file with a `main()` demo and detailed comments expl
 | 4 | Builder | [`House.java`](src/main/java/com/fragenabhishek/designpatterns/creational/House.java) | Done |
 | 5 | Prototype | [`PrototypeDemo.java`](src/main/java/com/fragenabhishek/designpatterns/creational/PrototypeDemo.java) | Done |
 
-### Structural (7/7)
+### Structural — 6/7 done
 
 | # | Pattern | File | Status |
 |---|---------|------|--------|
@@ -31,7 +31,7 @@ Each pattern is in a single file with a `main()` demo and detailed comments expl
 | 11 | Flyweight | [`FlyweightDemo.java`](src/main/java/com/fragenabhishek/designpatterns/structural/FlyweightDemo.java) | Done |
 | 12 | Proxy | [`RealImage.java`](src/main/java/com/fragenabhishek/designpatterns/structural/RealImage.java) | Done |
 
-### Behavioral (11/11)
+### Behavioral — 8/11 done
 
 | # | Pattern | File | Status |
 |---|---------|------|--------|
