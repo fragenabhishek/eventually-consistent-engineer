@@ -1,17 +1,46 @@
 package com.fragenabhishek.designpatterns.behavioral;
 
+/*
+ * =====================================================
+ *  STATE PATTERN (Behavioral)
+ * =====================================================
+ *
+ *  Intent:   Allow an object to change its behavior when its internal state changes.
+ *            The object appears to change its class.
+ *
+ *  Problem:  A traffic light behaves differently depending on its current color.
+ *            Without State pattern, every method has if-else chains checking the current state.
+ *            Adding a new state means touching every method.
+ *
+ *  Solution: Extract each state into its own class implementing a common State interface.
+ *            The context (TrafficLight) delegates behavior to the current state object.
+ *            State transitions return the next state object.
+ *
+ *  Structure:
+ *    TrafficLightState       →  State interface (showLight + next)
+ *    RedState, GreenState..  →  Concrete States (each knows its behavior and its successor)
+ *    TrafficLight            →  Context (holds current state, delegates to it)
+ *
+ *  State vs Strategy:
+ *    - State: the OBJECT transitions between states automatically (internal)
+ *    - Strategy: the CLIENT chooses the algorithm (external)
+ *
+ *  Real-world: Order status (PENDING→CONFIRMED→SHIPPED), TCP connection states, workflow engines
+ * =====================================================
+ */
+
+// --- State interface ---
 public interface TrafficLightState {
     void showLight();
     TrafficLightState next();
-
 }
 
+// --- Concrete States ---
 
-class RedState implements TrafficLightState{
-
+class RedState implements TrafficLightState {
     @Override
     public void showLight() {
-        System.out.println("Red Light - STOP");
+        System.out.println("RED Light — STOP");
     }
 
     @Override
@@ -20,11 +49,10 @@ class RedState implements TrafficLightState{
     }
 }
 
-class GreenState implements TrafficLightState{
-
+class GreenState implements TrafficLightState {
     @Override
     public void showLight() {
-        System.out.println("Green Light - GO");
+        System.out.println("GREEN Light — GO");
     }
 
     @Override
@@ -33,11 +61,10 @@ class GreenState implements TrafficLightState{
     }
 }
 
-class YellowState implements TrafficLightState{
-
+class YellowState implements TrafficLightState {
     @Override
     public void showLight() {
-        System.out.println("Yellow Light - WAIT");
+        System.out.println("YELLOW Light — SLOW DOWN");
     }
 
     @Override
@@ -46,25 +73,28 @@ class YellowState implements TrafficLightState{
     }
 }
 
-class TrafficLight{
+// --- Context ---
+class TrafficLight {
     private TrafficLightState currentState;
 
-    public TrafficLight(TrafficLightState initialState){
+    public TrafficLight(TrafficLightState initialState) {
         this.currentState = initialState;
     }
 
-    public void change(){
-        currentState = currentState.next();
-        currentState.showLight();
+    public void change() {
+        currentState.showLight();                // show current
+        currentState = currentState.next();      // transition to next
     }
 }
 
-class Main3{
+// --- Demo ---
+class StateDemo {
     public static void main(String[] args) {
-        TrafficLight trafficLight = new TrafficLight(new RedState());
+        TrafficLight light = new TrafficLight(new RedState());
 
-        for (int i = 0; i < 6; i++){
-            trafficLight.change();
+        // Cycle through 6 state changes: Red → Green → Yellow → Red → Green → Yellow
+        for (int i = 0; i < 6; i++) {
+            light.change();
         }
     }
 }

@@ -1,38 +1,71 @@
-# Java Design Patterns - Daily Examples
+# Java Design Patterns — Complete Tracker
 
 ## Overview
-This repository contains daily implementations of widely used Java design patterns in Java.  
-Each pattern is implemented with a small example, tested via `main()`, and pushed to GitHub daily for practice.
 
-This README will serve as your **daily study guide**, showing which pattern to focus on, its type, and a short note about its use.
+This repository contains implementations of the **Gang of Four (GoF)** design patterns in Java.
+Each pattern is in a single file with a `main()` demo and detailed comments explaining the concept.
+
+---
+
+## All 23 GoF Patterns — Status
+
+### Creational (5/5)
+
+| # | Pattern | File | Status |
+|---|---------|------|--------|
+| 1 | Singleton | [`DatabaseConnection.java`](src/main/java/com/fragenabhishek/designpatterns/creational/DatabaseConnection.java) | Done |
+| 2 | Factory Method | [`Notification.java`](src/main/java/com/fragenabhishek/designpatterns/creational/Notification.java) | Done |
+| 3 | Abstract Factory | [`BikeSpot.java`](src/main/java/com/fragenabhishek/designpatterns/creational/BikeSpot.java) | Done |
+| 4 | Builder | [`House.java`](src/main/java/com/fragenabhishek/designpatterns/creational/House.java) | Done |
+| 5 | Prototype | [`PrototypeDemo.java`](src/main/java/com/fragenabhishek/designpatterns/creational/PrototypeDemo.java) | Done |
+
+### Structural (7/7)
+
+| # | Pattern | File | Status |
+|---|---------|------|--------|
+| 6 | Adapter | [`MediaPlayer.java`](src/main/java/com/fragenabhishek/designpatterns/structural/MediaPlayer.java) | Done |
+| 7 | Bridge | — | Pending |
+| 8 | Composite | [`FileSystem.java`](src/main/java/com/fragenabhishek/designpatterns/structural/FileSystem.java) | Done |
+| 9 | Decorator | [`Notification.java`](src/main/java/com/fragenabhishek/designpatterns/structural/Notification.java) | Done |
+| 10 | Facade | [`FacadeDemo.java`](src/main/java/com/fragenabhishek/designpatterns/structural/FacadeDemo.java) | Done |
+| 11 | Flyweight | [`FlyweightDemo.java`](src/main/java/com/fragenabhishek/designpatterns/structural/FlyweightDemo.java) | Done |
+| 12 | Proxy | [`RealImage.java`](src/main/java/com/fragenabhishek/designpatterns/structural/RealImage.java) | Done |
+
+### Behavioral (11/11)
+
+| # | Pattern | File | Status |
+|---|---------|------|--------|
+| 13 | Chain of Responsibility | [`CORDemo.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/CORDemo.java) | Done |
+| 14 | Command | [`Command.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/Command.java) | Done |
+| 15 | Interpreter | — | Pending |
+| 16 | Iterator | — | Pending |
+| 17 | Mediator | — | Pending |
+| 18 | Memento | [`Memento.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/Memento.java) | Done |
+| 19 | Observer | [`Observer.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/Observer.java) | Done |
+| 20 | State | [`TrafficLightState.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/TrafficLightState.java) | Done |
+| 21 | Strategy | [`PaymentStrategy.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/PaymentStrategy.java) | Done |
+| 22 | Template Method | [`Drink.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/Drink.java) | Done |
+| 23 | Visitor | [`VisitorClient.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/VisitorClient.java) | Done |
 
 ---
 
-## Daily Patterns Log
+## Summary
 
-| Day | Pattern | Type | Notes |
-|-----|---------|------|-------|
-| 1   | Singleton | Creational | Ensures a single object instance, used for DB connections/logging |
-| 2   | Factory Method | Creational | Creates objects without specifying the exact class |
-| 3   | Observer | Behavioral | Notifies multiple subscribers of changes, used in event-driven systems |
-| 4   | Strategy | Behavioral | Implements interchangeable algorithms at runtime |
-| 5   | Decorator | Structural | Adds functionality to objects dynamically, e.g., I/O streams |
-| 6   | Adapter | Structural | Converts interface of a class to another interface expected by clients |
-| 7   | Builder | Creational | Builds complex objects step by step |
-| 8   | Proxy | Structural | Controls access to objects, used in caching or security |
-| 9   | Command | Behavioral | Encapsulates requests for undo/redo or queued execution |
-| 10  | Template Method | Behavioral | Defines skeleton of an algorithm with customizable steps |
-| 11  | Composite | Structural | Handles tree structures like UI components or filesystems |
-| 12  | State | Behavioral | Changes object behavior based on its internal state |
-| 13  | Facade | Structural | Provides a simplified interface to a complex subsystem |
-| 14  | Abstract Factory | Creational | Produces families of related objects without specifying concrete classes |
-| 15  | Memento | Behavioral | Captures and restores object state, used in undo functionality |
-| 16  | Flyweight | Structural | Reduces memory usage for large numbers of similar objects |
-| 17  | Visitor | Behavioral | Adds operations to objects without modifying their classes |
-| 18  | Prototype | Creational | Creates object copies efficiently, sometimes for caching |
-| 19  | Chain of Responsibility | Behavioral | Handles requests via a chain, useful in event processing |
-| 20  | Mediator | Behavioral | Centralizes communication between objects to reduce coupling |
-
-> You can start daily from **Day 1 (Singleton)** and continue sequentially or pick the patterns most relevant to your projects.
+| Category | Implemented | Pending |
+|----------|:-----------:|:-------:|
+| Creational | 5/5 | — |
+| Structural | 6/7 | Bridge |
+| Behavioral | 8/11 | Iterator, Mediator, Interpreter |
+| **Total** | **19/23** | **4** |
 
 ---
+
+## Interview Priority
+
+> If you only have time for the top patterns, focus on these (appear in every LLD interview):
+
+**Must Know:** Singleton, Factory, Builder, Adapter, Decorator, Facade, Proxy, Observer, Strategy, Template Method
+
+**Important:** Abstract Factory, Composite, Chain of Responsibility, Command, State
+
+**Good to Know:** Prototype, Flyweight, Memento, Visitor, Bridge, Iterator, Mediator, Interpreter

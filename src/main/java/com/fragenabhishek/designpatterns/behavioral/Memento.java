@@ -2,7 +2,37 @@ package com.fragenabhishek.designpatterns.behavioral;
 
 import java.util.Stack;
 
-// Memento
+/*
+ * =====================================================
+ *  MEMENTO PATTERN (Behavioral)
+ * =====================================================
+ *
+ *  Intent:   Capture and restore an object's internal state without violating encapsulation.
+ *
+ *  Problem:  A text editor needs undo/redo at the STATE level (not just the action level
+ *            like Command pattern). You want to snapshot the entire editor content at each
+ *            point and restore it freely.
+ *
+ *  Solution: Three roles:
+ *            - Originator creates and restores from snapshots (mementos)
+ *            - Memento holds the saved state (immutable, opaque to outsiders)
+ *            - Caretaker manages the memento stack (doesn't peek inside mementos)
+ *
+ *  Structure:
+ *    TextMemento           →  Memento (immutable snapshot of state)
+ *    TextEditorOriginator  →  Originator (creates/restores mementos)
+ *    History               →  Caretaker (manages undo/redo stacks of mementos)
+ *
+ *  Memento vs Command:
+ *    - Memento: saves full STATE snapshots → restore to any previous state
+ *    - Command: saves ACTIONS → undo by reversing the action
+ *    - Use Memento when state is complex or actions aren't easily reversible
+ *
+ *  Real-world: Browser back/forward, game save/load, DB transaction rollback, Ctrl+Z
+ * =====================================================
+ */
+
+// --- Memento: immutable state snapshot ---
 class TextMemento {
     private final String text;
 
@@ -15,7 +45,7 @@ class TextMemento {
     }
 }
 
-// Originator
+// --- Originator: the object whose state we want to save/restore ---
 class TextEditorOriginator {
     private String text = "";
 
@@ -24,12 +54,12 @@ class TextEditorOriginator {
     }
 
     public TextMemento save() {
-        return new TextMemento(text);
+        return new TextMemento(text);         // create a snapshot of current state
     }
 
     public void restore(TextMemento memento) {
         if (memento != null) {
-            text = memento.getText();
+            text = memento.getText();          // restore state from snapshot
         }
     }
 
@@ -38,69 +68,64 @@ class TextEditorOriginator {
     }
 }
 
-// Caretaker with proper undo/redo
+// --- Caretaker: manages undo/redo history without knowing what's inside mementos ---
 class History {
-    private Stack<TextMemento> undoStack = new Stack<>();
-    private Stack<TextMemento> redoStack = new Stack<>();
+    private final Stack<TextMemento> undoStack = new Stack<>();
+    private final Stack<TextMemento> redoStack = new Stack<>();
 
-    // Save the current state BEFORE a change
+    // Save the current state BEFORE making a change
     public void saveBeforeChange(TextEditorOriginator editor) {
         undoStack.push(editor.save());
-        redoStack.clear(); // New change clears redo history
+        redoStack.clear();                     // new change invalidates redo history
     }
 
     public TextMemento undo(TextEditorOriginator editor) {
         if (!undoStack.isEmpty()) {
-            TextMemento currentState = editor.save(); // save current for redo
-            redoStack.push(currentState);
-            return undoStack.pop();
+            redoStack.push(editor.save());     // save current state for redo
+            return undoStack.pop();            // return previous state
         }
         return null;
     }
 
     public TextMemento redo(TextEditorOriginator editor) {
         if (!redoStack.isEmpty()) {
-            TextMemento currentState = editor.save(); // save current for undo
-            undoStack.push(currentState);
-            return redoStack.pop();
+            undoStack.push(editor.save());     // save current state for undo
+            return redoStack.pop();            // return redo state
         }
         return null;
     }
 }
 
-// Usage
+// --- Demo ---
 public class Memento {
     public static void main(String[] args) {
         TextEditorOriginator editor = new TextEditorOriginator();
         History history = new History();
 
-        // Save initial empty state
+        // Write "Hello " — save state before each change
         history.saveBeforeChange(editor);
+        editor.write("Hello ");
 
-        // First write
-        history.saveBeforeChange(editor); // save BEFORE change
-        editor.write("hello this ");
+        // Write "World" — save state before change
+        history.saveBeforeChange(editor);
+        editor.write("World");
 
-        // Second write
-        history.saveBeforeChange(editor); // save BEFORE change
-        editor.write("memento design");
+        System.out.println("Current:      " + editor.read());   // Hello World
 
-        System.out.println("Current Text: " + editor.read()); // hello this memento design
-
-        // Undo #1
+        // Undo → back to "Hello "
         editor.restore(history.undo(editor));
-        System.out.println("After Undo: " + editor.read()); // hello this
+        System.out.println("After Undo:   " + editor.read());   // Hello
 
-        // Undo #2
+        // Undo → back to ""
         editor.restore(history.undo(editor));
-        System.out.println("After Second Undo: " + editor.read()); // ""
+        System.out.println("After Undo 2: " + editor.read());   // (empty)
 
-        // Redo #1
+        // Redo → forward to "Hello "
         editor.restore(history.redo(editor));
-        System.out.println("After Redo: " + editor.read()); // hello this
+        System.out.println("After Redo:   " + editor.read());   // Hello
 
-        // Redo #2
+        // Redo → forward to "Hello World"
         editor.restore(history.redo(editor));
-        System.out.println("After Second Redo: " + editor.read()); // hello this memento design
+        System.out.println("After Redo 2: " + editor.read());   // Hello World
     }
 }

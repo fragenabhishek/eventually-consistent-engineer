@@ -1,45 +1,78 @@
 package com.fragenabhishek.designpatterns.creational;
 
-interface Prototype{
+/*
+ * =====================================================
+ *  PROTOTYPE PATTERN (Creational)
+ * =====================================================
+ *
+ *  Intent:   Create new objects by cloning an existing object (the prototype)
+ *            instead of constructing from scratch.
+ *
+ *  Problem:  Creating a Car involves heavy setup (DB calls, config loading, etc.).
+ *            When you need many similar objects with small variations, cloning
+ *            a template is much cheaper than repeating the full creation process.
+ *
+ *  Solution: Define a Prototype interface with clone(). Concrete classes implement
+ *            clone() to return a copy of themselves. Client clones and tweaks.
+ *
+ *  Structure:
+ *    Prototype  →  Interface declaring clone()
+ *    Car        →  Concrete Prototype (implements clone by copying its own fields)
+ *
+ *  Deep vs Shallow copy:
+ *    - Shallow: copies primitive fields; reference fields still point to same objects
+ *    - Deep: copies everything recursively (needed when object has mutable references)
+ *    - This example uses deep copy (creates a new Car with copied field values)
+ *
+ *  Real-world: Object.clone(), Spring prototype bean scope, copying config/template objects
+ * =====================================================
+ */
+
+// --- Prototype interface ---
+interface Prototype {
     Prototype clone();
 }
 
-class Car implements Prototype{
+// --- Concrete Prototype ---
+class Car implements Prototype {
+    private String engineType;
+    private String color;
 
-    String engineType;
-    String color;
-
-    public Car(String engine, String color){
+    public Car(String engineType, String color) {
+        this.engineType = engineType;
         this.color = color;
-        this.engineType = engine;
     }
 
     @Override
     public Prototype clone() {
-        return new Car(this.engineType,this.color);
+        return new Car(this.engineType, this.color);  // deep copy — new object with same values
     }
 
-    public void setColor(String color){
+    public void setColor(String color) {
         this.color = color;
     }
 
     public void showDetails() {
-        System.out.println("Car color: " + color + ", Engine: " + engineType);
+        System.out.println("Car [engine=" + engineType + ", color=" + color + "]");
     }
 }
 
+// --- Demo ---
 public class PrototypeDemo {
     public static void main(String[] args) {
-        Car prototype = new Car("Classic", "Red");
+        // Create an expensive-to-build template car
+        Car prototype = new Car("V8 Classic", "Red");
 
-        Car car1 = (Car)prototype.clone();
+        // Clone and customize — much cheaper than building from scratch
+        Car car1 = (Car) prototype.clone();
         car1.setColor("Black");
 
         Car car2 = (Car) prototype.clone();
         car2.setColor("Yellow");
 
-        prototype.showDetails();
-        car2.showDetails();
-        car1.showDetails();
+        // Each is an independent object with its own state
+        prototype.showDetails();  // Car [engine=V8 Classic, color=Red]
+        car1.showDetails();       // Car [engine=V8 Classic, color=Black]
+        car2.showDetails();       // Car [engine=V8 Classic, color=Yellow]
     }
 }

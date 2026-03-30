@@ -53,12 +53,12 @@ Each pattern is implemented with a small example and a `main()` method for quick
 | 11 | Memento | [`Memento.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/Memento.java) | Text editor undo/redo with state snapshots |
 | 12 | Chain of Responsibility | [`CORDemo.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/CORDemo.java) | Support ticket escalation chain |
 | 13 | Visitor | [`VisitorClient.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/VisitorClient.java) | Zoo animal feeding & health check visitors |
-| 14 | Facade | [`DVDPlayer.java`](src/main/java/com/fragenabhishek/designpatterns/behavioral/DVDPlayer.java) | Home theater simplified interface |
 
 ### Structural
 
 | # | Pattern | File | Key Concept |
 |---|---------|------|-------------|
+| 14 | Facade | [`FacadeDemo.java`](src/main/java/com/fragenabhishek/designpatterns/structural/FacadeDemo.java) | Home theater simplified interface |
 | 15 | Decorator | [`Notification.java`](src/main/java/com/fragenabhishek/designpatterns/structural/Notification.java) | Logging + Encryption decorators on notifications |
 | 16 | Adapter | [`MediaPlayer.java`](src/main/java/com/fragenabhishek/designpatterns/structural/MediaPlayer.java) | Adapt advanced media formats to simple player |
 | 17 | Proxy | [`RealImage.java`](src/main/java/com/fragenabhishek/designpatterns/structural/RealImage.java) | Lazy-loading image proxy |
