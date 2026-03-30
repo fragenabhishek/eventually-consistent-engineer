@@ -1,7 +1,0 @@
-target/\n*.class
-
-# Ignore Java class files
-*.class
-
-# Ignore IntelliJ output folder
-/out/

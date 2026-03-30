@@ -1,7 +1,18 @@
-target/\n*.class
-
-# Ignore Java class files
+# Compiled class files
 *.class
 
-# Ignore IntelliJ output folder
-/out/
+# Build output
+**/out/
+**/target/
+**/build/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
