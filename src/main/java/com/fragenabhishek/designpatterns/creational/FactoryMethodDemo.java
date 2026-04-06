@@ -18,7 +18,7 @@ import java.util.function.Supplier;
  *            zero changes to existing code.
  *
  *  Structure:
- *    Notification             →  Product interface (what all notifications can do)
+ *    NotificationChannel      →  Product interface (what all notifications can do)
  *    EmailNotification, etc.  →  Concrete Products
  *    NotificationFactory      →  Factory (Map<String, Supplier> for O(1) lookup)
  *
@@ -32,27 +32,27 @@ import java.util.function.Supplier;
  */
 
 // --- Product interface ---
-public interface Notification {
+interface NotificationChannel {
     void notifyUser();
 }
 
 // --- Concrete Products ---
 
-class EmailNotification implements Notification {
+class EmailNotification implements NotificationChannel {
     @Override
     public void notifyUser() {
         System.out.println("Sending Email Notification");
     }
 }
 
-class SMSNotification implements Notification {
+class SMSNotification implements NotificationChannel {
     @Override
     public void notifyUser() {
         System.out.println("Sending SMS Notification");
     }
 }
 
-class PushNotification implements Notification {
+class PushNotification implements NotificationChannel {
     @Override
     public void notifyUser() {
         System.out.println("Sending PUSH Notification");
@@ -62,7 +62,7 @@ class PushNotification implements Notification {
 // --- Factory ---
 class NotificationFactory {
 
-    private static final Map<String, Supplier<Notification>> registry = new HashMap<>();
+    private static final Map<String, Supplier<NotificationChannel>> registry = new HashMap<>();
 
     static {
         registry.put("EMAIL", EmailNotification::new);
@@ -70,8 +70,8 @@ class NotificationFactory {
         registry.put("PUSH", PushNotification::new);
     }
 
-    public static Notification createNotification(String type) {
-        Supplier<Notification> supplier = registry.get(type.toUpperCase());
+    public static NotificationChannel createNotification(String type) {
+        Supplier<NotificationChannel> supplier = registry.get(type.toUpperCase());
         if (supplier == null) {
             throw new IllegalArgumentException("Unknown notification type: " + type);
         }
@@ -80,16 +80,16 @@ class NotificationFactory {
 }
 
 // --- Demo ---
-class FactoryDemo {
+public class FactoryMethodDemo {
     public static void main(String[] args) {
         // Client never knows the concrete class — just asks the factory
-        Notification sms = NotificationFactory.createNotification("SMS");
+        NotificationChannel sms = NotificationFactory.createNotification("SMS");
         sms.notifyUser();   // Sending SMS Notification
 
-        Notification push = NotificationFactory.createNotification("PUSH");
+        NotificationChannel push = NotificationFactory.createNotification("PUSH");
         push.notifyUser();  // Sending PUSH Notification
 
-        Notification email = NotificationFactory.createNotification("EMAIL");
+        NotificationChannel email = NotificationFactory.createNotification("EMAIL");
         email.notifyUser(); // Sending Email Notification
 
         // Unknown type → throws IllegalArgumentException (fail-fast, not silent null)

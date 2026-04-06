@@ -1,6 +1,7 @@
 package com.fragenabhishek.designpatterns.behavioral;
 
-import java.util.Stack;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 /*
  * =====================================================
@@ -78,8 +79,8 @@ class AddTextCommand implements Command {
 
 // --- Invoker: manages command history ---
 class Invoker {
-    private final Stack<Command> undoStack = new Stack<>();
-    private final Stack<Command> redoStack = new Stack<>();
+    private final Deque<Command> undoStack = new ArrayDeque<>();
+    private final Deque<Command> redoStack = new ArrayDeque<>();
 
     public void executeCommand(Command cmd) {
         cmd.execute();
@@ -102,6 +103,7 @@ class Invoker {
             undoStack.push(cmd);
         }
     }
+
 }
 
 // --- Demo ---

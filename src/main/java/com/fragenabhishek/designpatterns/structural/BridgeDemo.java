@@ -111,15 +111,15 @@ class StoreOrder extends Order{
     }
 }
 
-class BlukOrder extends Order{
+class BulkOrder extends Order{
 
-    public BlukOrder(PaymentMethod paymentMethod){
+    public BulkOrder(PaymentMethod paymentMethod){
         super(paymentMethod);
     }
 
     @Override
     void processOrder(double amount) {
-        System.out.println("Processing Bluk Order ....");
+        System.out.println("Processing Bulk Order ....");
         paymentMethod.pay(amount);
     }
 }

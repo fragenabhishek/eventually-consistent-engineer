@@ -1,6 +1,7 @@
 package com.fragenabhishek.designpatterns.behavioral;
 
-import java.util.Stack;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 /*
  * =====================================================
@@ -70,8 +71,8 @@ class TextEditorOriginator {
 
 // --- Caretaker: manages undo/redo history without knowing what's inside mementos ---
 class History {
-    private final Stack<TextMemento> undoStack = new Stack<>();
-    private final Stack<TextMemento> redoStack = new Stack<>();
+    private final Deque<TextMemento> undoStack = new ArrayDeque<>();
+    private final Deque<TextMemento> redoStack = new ArrayDeque<>();
 
     // Save the current state BEFORE making a change
     public void saveBeforeChange(TextEditorOriginator editor) {
@@ -97,7 +98,7 @@ class History {
 }
 
 // --- Demo ---
-public class Memento {
+public class MementoDemo {
     public static void main(String[] args) {
         TextEditorOriginator editor = new TextEditorOriginator();
         History history = new History();

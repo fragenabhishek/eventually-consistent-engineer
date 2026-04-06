@@ -22,7 +22,9 @@ package com.fragenabhishek.designpatterns.creational;
  *  Deep vs Shallow copy:
  *    - Shallow: copies primitive fields; reference fields still point to same objects
  *    - Deep: copies everything recursively (needed when object has mutable references)
- *    - This example uses deep copy (creates a new Car with copied field values)
+ *    - This example copies all field values into a new object. Because both fields are
+ *      Strings (immutable), this is effectively equivalent to a deep copy. If Car held
+ *      mutable objects (e.g. List, Date), you would need to clone those too.
  *
  *  Real-world: Object.clone(), Spring prototype bean scope, copying config/template objects
  * =====================================================
@@ -45,7 +47,7 @@ class Car implements Prototype {
 
     @Override
     public Prototype clone() {
-        return new Car(this.engineType, this.color);  // deep copy — new object with same values
+        return new Car(this.engineType, this.color);  // new independent object; safe because Strings are immutable
     }
 
     public void setColor(String color) {
