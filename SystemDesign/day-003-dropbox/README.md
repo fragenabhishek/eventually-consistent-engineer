@@ -1,93 +1,69 @@
-# Day 003 — Cloud Storage System (Dropbox / Google Drive)
+# Cloud Storage System (Dropbox / Google Drive) — System Design
 
-> **Interview Goal:** Design a file storage and sync service used by millions.  
-> **Your job today:** Read the requirements, sketch the architecture yourself, then check `design.md` (when added).
-
----
-
-## The Scenario
-
-You're a backend engineer at a startup building a cloud storage product. Users want to upload files from any device, access them anywhere, and automatically sync changes across all their devices. Think Dropbox, Google Drive, or OneDrive.
+## Problem Statement
+Build a cloud file storage and synchronization service used by **hundreds of millions** of users. Users can upload/download files from any device and have changes automatically synced across devices. The system must be highly available, extremely durable (never lose data), support file operations (delete/rename/move), versioning (last 30 versions), sharing, name search, and offline mode.
 
 ---
 
 ## Functional Requirements
+1. **Upload files** (any type, up to **5 GB** per file) with **resumable, chunked upload**.
+2. **Download files** from any device.
+3. **Automatic sync** across devices when files are updated.
+4. **File/folder operations**: delete, rename, move.
+5. **Versioning**: restore any of the **last 30 versions**.
+6. **Sharing**: share file/folder with users; permissions: **view/edit**.
+7. **Search**: by **file/folder name**.
+8. **Offline mode**: changes made offline sync when connectivity returns.
 
-1. Users can **upload** files (any type, up to 5 GB per file).
-2. Users can **download** files from any device.
-3. Files automatically **sync** across all devices when updated.
-4. Users can **delete**, **rename**, and **move** files and folders.
-5. Support **versioning** — users can restore any of the last 30 versions of a file.
-6. Support **sharing** — a user can share a file or folder with other users (view or edit permission).
-7. Users can **search** their files by name.
-8. Support for **offline mode** — changes made offline sync when connectivity returns.
-
----
-
-## Non-Functional Requirements
-
+## Non‑Functional Requirements
 | Property | Target |
-|----------|--------|
-| Availability | 99.99% |
-| Durability | 99.999999999% (files must never be lost) |
-| Read/write latency | < 200 ms for small files |
-| Upload throughput | Large files uploaded in chunks (resumable) |
-| Consistency | Eventual consistency for sync; strong for metadata |
-| Scale | 500 million users, ~1 billion files stored |
+|---|---|
+| Availability | **99.99%** |
+| Durability | **99.999999999%** |
+| Latency | **< 200 ms** for small file metadata reads & small downloads |
+| Upload throughput | Large files uploaded in **chunks**, **resumable** |
+| Consistency | **Strong** for metadata; **eventual** for sync propagation |
+| Scale | **500M users**, **~1B files** |
 
 ---
 
-## Capacity Estimation
+## Capacity Estimation (Given)
+- **Users**: 500M total, 50M daily active
+- **Average file size**: 500 KB
+- **New files/day**: 100M uploads
+- **New storage/day**: ~50 TB/day (raw)
+- **Total storage**: ~500 PB (with replicas)
+- **Read:Write**: ~10:1
 
-| Metric | Estimate |
-|--------|----------|
-| Users | 500M total, 50M daily active |
-| Avg file size | 500 KB |
-| New files/day | 100M uploads |
-| Storage/day | ~50 TB new data per day |
-| Total storage | ~500 PB (with replicas) |
-| Read:Write ratio | ~10:1 (mostly reads/syncs) |
-
----
-
-## Core API to Design
-
-```
-POST   /files/upload           → upload a file (return fileId)
-GET    /files/{fileId}         → download a file
-DELETE /files/{fileId}         → delete a file
-PUT    /files/{fileId}/rename  → rename a file
-GET    /files/{fileId}/versions → list version history
-POST   /files/{fileId}/restore → restore a version
-POST   /files/{fileId}/share   → share with another user
-GET    /folders/{folderId}     → list folder contents
-```
+### Derived/Back-of-Envelope
+- **Peak DAU concurrency** (rough): 50M DAU, assume 10% concurrently active → 5M active sessions.
+- **Upload QPS** (rough): 100M/day ≈ 1157 uploads/sec avg; peak could be 5–10×.
+- **Metadata ops QPS**: significantly higher due to sync polling/streaming events; plan for tens of thousands QPS per region.
 
 ---
 
-## Key Challenges to Think About
+## Core APIs (from prompt)
+- `POST   /files/upload` → upload a file (return `fileId`)
+- `GET    /files/{fileId}` → download a file
+- `DELETE /files/{fileId}` → delete a file
+- `PUT    /files/{fileId}/rename` → rename a file
+- `GET    /files/{fileId}/versions` → list version history
+- `POST   /files/{fileId}/restore` → restore a version
+- `POST   /files/{fileId}/share` → share with another user
+- `GET    /folders/{folderId}` → list folder contents
 
-- **Chunked upload:** How do you handle 5 GB files? What happens if upload is interrupted midway?
-- **Deduplication:** If 1,000 users upload the same 500 MB file, do you store it 1,000 times?
-- **Delta sync:** When a 1 GB file changes by 1 KB, do you re-upload the whole file?
-- **Conflict resolution:** What happens when the same file is edited on two devices simultaneously while offline?
-- **Storage backend:** Block storage vs object storage — which suits this use case and why?
-- **Metadata vs file data:** Should they be stored in the same system? What are the trade-offs?
-- **Thumbnail generation:** How would you generate thumbnails for images asynchronously?
-
----
-
-## Clarifying Questions (practice asking these in an interview)
-
-1. Do we need real-time collaboration (simultaneous editing like Google Docs)?
-2. What is the maximum file size per upload?
-3. How many versions should we keep per file?
-4. Do we need mobile clients (different sync behaviour)?
-5. Should deleted files go to a trash/recycle bin before permanent deletion?
-6. Is file search full-text (content) or name-only?
+> Note: in the design we extend upload to include **upload sessions** + **chunk commit** endpoints; the original can remain a convenience wrapper.
 
 ---
 
-## Concepts Tested
+## Out of Scope (Explicit)
+- Real-time collaborative editing (Google Docs style) is **out of scope**.
+- Full-text search inside file contents is **out of scope** (name-only search).
 
-`Object Storage (S3)` · `Chunked Upload` · `CDN` · `Metadata DB` · `Deduplication (Content-addressable storage)` · `Event-driven sync` · `Conflict resolution` · `Versioning`
+---
+
+## What to Look for in the Design
+- Separation of **metadata** (strongly consistent) from **blob data** (durable object storage).
+- Efficient **chunked/resumable uploads**, **deduplication**, and **delta sync**.
+- Event-driven sync propagation and conflict resolution for offline edits.
+- Operational considerations: multi-region, retries, idempotency, GC, quotas, monitoring.
