@@ -1,93 +1,76 @@
-# Day 005 — Video Streaming + CDN (Netflix)
+# Video Streaming + CDN (Netflix) — System Design
 
-> **Interview Goal:** Design a subscription-based video streaming service focused on CDN architecture and content delivery.  
-> **Your job today:** Read the requirements, sketch the architecture yourself, then check `design.md` (when added).
-
----
-
-## The Scenario
-
-Netflix serves 250 million subscribers across 190 countries. Unlike YouTube (user-generated), Netflix hosts a fixed catalog of licensed/original content — but it must stream it reliably to any device, any network, anywhere in the world. The key engineering challenge is delivering massive video files globally with minimal latency and buffering.
+## Problem Statement
+Design a **subscription-based** video streaming service that delivers a fixed catalog of licensed/original content to **250M subscribers across 190 countries**. The core challenge is **global content delivery**: start playback in **< 2 seconds**, keep buffering **< 0.1%**, and support **peak 100M concurrent streams** using a CDN architecture (Netflix-like *Open Connect*).
 
 ---
 
 ## Functional Requirements
+1. Browse a **content catalog** (movies/TV/shows) with pagination.
+2. **Stream** any title using **adaptive bitrate streaming** (ABR) (HLS/DASH).
+3. **Offline downloads** on mobile (DRM protected).
+4. Remember **watch progress** (resume where left off).
+5. Personalized **recommendations** on home page.
+6. **Multiple profiles** per account (kids/adult), separate watch history.
+7. **Subtitles** and **audio tracks** in multiple languages.
+8. Enforce **concurrent stream limits** by tier:
+   - Basic = 1
+   - Standard = 2
+   - Premium = 4
 
-1. Users can **browse** a content catalog (movies, TV shows, documentaries).
-2. Users can **stream** any title — playback adapts to network conditions.
-3. Users can **download** titles for offline viewing (mobile only).
-4. The system remembers **watch progress** and resumes where the user left off.
-5. Provide **personalized recommendations** on the home page.
-6. Support **multiple profiles** per account (e.g., kids profile, adult profile).
-7. Support **subtitles and audio tracks** in multiple languages.
-8. Enforce **concurrent stream limits** per subscription tier (Basic = 1, Standard = 2, Premium = 4).
+### Clarifications (typical interview)
+- On-demand only (no live sports) unless required.
+- Geo-restrictions apply (title availability differs by country).
+- DRM required for licensed content.
 
 ---
 
 ## Non-Functional Requirements
-
 | Property | Target |
-|----------|--------|
+|---|---|
 | Availability | 99.99% |
-| Streaming latency | Playback starts < 2 seconds |
+| Playback start latency | < 2 seconds |
 | Buffering rate | < 0.1% of streaming time |
-| Scale | 250M subscribers; peak 100M concurrent streams |
-| Content catalog | ~15,000 titles, each in 10+ resolution/bitrate variants |
-| Bandwidth | Netflix accounts for ~15% of global internet traffic at peak |
+| Scale | 250M subs; peak 100M concurrent streams |
+| Catalog size | ~15,000 titles; 10+ variants each |
+| Bandwidth | ~15% of global traffic at peak |
+
+Consistency expectations:
+- **Strong**: subscription tier, session validation, playback authorization.
+- **Eventual**: recommendations, analytics counters.
 
 ---
 
-## Capacity Estimation
+## Capacity Estimation (Given)
+- Subscribers: 250M
+- Peak concurrent streams: 100M
+- Avg bitrate per stream: 5 Mbps
+- Peak bandwidth required: 500 Tbps
+- Avg movie size (4K): ~20 GB
+- Total content storage: 15,000 titles × 10 variants × 20 GB ≈ 3 PB
 
-| Metric | Estimate |
-|--------|----------|
-| Subscribers | 250M |
-| Peak concurrent streams | 100M |
-| Avg bitrate per stream | 5 Mbps |
-| Peak bandwidth required | 500 Tbps |
-| Avg movie size (4K) | ~20 GB |
-| Total content storage | ~15,000 titles × 10 variants × 20 GB ≈ 3 PB |
-
----
-
-## Core API to Design
-
-```
-GET    /catalog                         → browse movies/shows (paginated)
-GET    /catalog/{titleId}               → get title metadata, available streams
-GET    /stream/{titleId}?quality=auto   → return adaptive stream manifest (HLS/DASH)
-POST   /watchHistory/{titleId}          → save watch progress
-GET    /watchHistory                    → resume watching list
-GET    /recommendations                 → personalized home feed
-GET    /downloads/{titleId}             → get offline download URL (mobile)
-POST   /sessions/validate               → check concurrent stream count
-```
+### Back-of-envelope sanity checks
+- **Peak egress**: 100M × 5 Mbps = 500,000,000 Mbps = **500 Tbps** ✔
+- **Origin cannot serve peak**: must use **ISP-embedded CDN edges**, aggressive caching, and pre-positioning.
 
 ---
 
-## Key Challenges to Think About
-
-- **Open Connect (Netflix's CDN):** Netflix places servers inside ISP data centres. How does a client know which edge server to hit? What's the routing strategy?
-- **Content pre-positioning:** Rather than pulling content from origin on demand, Netflix pre-loads popular content to edge servers during off-peak hours. How do you decide *what* to pre-position *where*?
-- **Adaptive bitrate:** A user on a 4G train starts streaming 1080p, goes through a tunnel, and the bitrate drops to 360p. How does the player switch seamlessly without rebuffering?
-- **DRM (Digital Rights Management):** Licensed content must be protected. How does encryption work without adding latency to every request?
-- **Concurrent stream enforcement:** If a user opens Netflix on 5 devices simultaneously with a 2-stream plan, how do you detect and enforce the limit reliably?
-- **Recommendation engine:** Netflix claims 80% of streams come from recommendations. What data do you need to build this? What are the latency requirements?
-- **Fault tolerance:** What happens if an ISP-level edge server goes down mid-stream?
-
----
-
-## Clarifying Questions (practice asking these in an interview)
-
-1. Are we designing the entire system, or focusing on the streaming/CDN component?
-2. Do we need to handle live sports/events or only on-demand content?
-3. Should recommendation be real-time or batch-computed overnight?
-4. How do we handle geo-restrictions (a title available in the US but not in India)?
-5. What's the SLA for concurrent stream enforcement — eventual or immediate?
-6. Do we need to support 4K + HDR streaming from day one?
+## Core APIs (from prompt)
+- `GET  /catalog` → browse titles (paginated)
+- `GET  /catalog/{titleId}` → title metadata, available streams
+- `GET  /stream/{titleId}?quality=auto` → ABR manifest (HLS/DASH)
+- `POST /watchHistory/{titleId}` → save watch progress
+- `GET  /watchHistory` → resume list
+- `GET  /recommendations` → personalized feed
+- `GET  /downloads/{titleId}` → offline download URL (mobile)
+- `POST /sessions/validate` → enforce concurrent streams
 
 ---
 
-## Concepts Tested
-
-`CDN architecture` · `Edge server placement` · `HLS/DASH adaptive streaming` · `Content pre-positioning` · `DRM` · `Consistent Hashing (CDN routing)` · `Recommendation systems` · `Session management`
+## What Interviewers Look For
+- CDN routing strategy (DNS/Anycast, consistent hashing, proximity/health).
+- Pre-positioning strategy and how it adapts to regional demand.
+- ABR streaming details (segments, manifests, player behavior).
+- DRM key/license flow without per-segment latency.
+- Session management for concurrent limits that is reliable under failures.
+- Failure handling: edge outage mid-stream, origin brownout, token revocation.
