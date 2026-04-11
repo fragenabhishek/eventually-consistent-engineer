@@ -15,8 +15,7 @@ flowchart LR
   subgraph ControlPlane["Control Plane"]
     AUTH[Auth Service]
     GEO[Geo / Entitlement Service]
-    SESS["Session Service
-(concurrent streams)"]
+    SESS[Session Service (concurrent streams)]
     PROF[Profile Service]
   end
 
@@ -29,23 +28,19 @@ flowchart LR
 
   subgraph DeliveryPlane["Playback & DRM"]
     PLAY[Playback Service]
-    MAN["Manifest Service
-(HLS/DASH)"]
-    TOK["Token Service
-(signed URLs)"]
+    MAN[Manifest Service (HLS/DASH)]
+    TOK[Token Service (signed URLs)]
     DRM[DRM License Service]
-    MAP["Edge Mapping Service
-(GeoDNS/telemetry)"]
+    MAP[Edge Mapping Service (GeoDNS/telemetry)]
   end
 
   subgraph CDN["CDN / Open Connect-like"]
     EDGE1[ISP Edge Cache Cluster]
-    MID["Regional Mid-tier / Shield"]
+    MID[Regional Mid-tier / Shield]
   end
 
   subgraph Origin[Origin]
-    OBJ["Object Storage
-(segments, manifests, tracks)"]
+    OBJ[Object Storage (segments, manifests, tracks)]
   end
 
   subgraph DataPlane["Data / ML"]
@@ -125,16 +120,14 @@ flowchart TB
   subgraph Forecast
     H[Historical Views]
     N[New Releases]
-    L["Locale Signals
-(language/holidays)"]
+    L[Locale Signals (language/holidays)]
     T[Trending Signals]
     F[Demand Forecast Model]
   end
 
   subgraph Planner
     P[Placement Planner]
-    C["Capacity Constraints
-(edge disk/egress)"]
+    C[Capacity Constraints (edge disk/egress)]
     K[Select Top-K Titles + Variants]
   end
 
