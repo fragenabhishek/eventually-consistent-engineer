@@ -1,52 +1,59 @@
-# diagram.md — Mermaid Architecture & Data Flow Diagrams
+# diagram.md — Mermaid Architecture & Data Flow Diagrams (GitHub-safe)
+
+> Copy-paste this whole file directly into `diagram.md` on GitHub.
+> ✅ No HTML entities (`&gt;`, `&lt;`, `&amp;`)
+> ✅ No multi-line node labels
+> ✅ Avoids parentheses in node labels (common cause of GitHub Mermaid parse errors)
+
+---
 
 ## 1) High-Level Architecture
 
 ```mermaid
 flowchart LR
   subgraph Clients
-    A[TV / Web / Mobile App]
+    A["TV / Web / Mobile App"]
   end
 
   subgraph Edge
-    G[API Gateway / Edge]
+    G["API Gateway / Edge"]
   end
 
   subgraph ControlPlane["Control Plane"]
-    AUTH[Auth Service]
-    GEO[Geo / Entitlement Service]
-    SESS[Session Service (concurrent streams)]
-    PROF[Profile Service]
+    AUTH["Auth Service"]
+    GEO["Geo and Entitlement Service"]
+    SESS["Session Service - concurrent streams"]
+    PROF["Profile Service"]
   end
 
-  subgraph MetadataPlane["Catalog & Metadata"]
-    CAT[Catalog Service]
-    META[Title Metadata Service]
-    IMG[Artwork/Image Service]
-    SRCH[Search Index]
+  subgraph MetadataPlane["Catalog and Metadata"]
+    CAT["Catalog Service"]
+    META["Title Metadata Service"]
+    IMG["Artwork and Image Service"]
+    SRCH["Search Index"]
   end
 
-  subgraph DeliveryPlane["Playback & DRM"]
-    PLAY[Playback Service]
-    MAN[Manifest Service (HLS/DASH)]
-    TOK[Token Service (signed URLs)]
-    DRM[DRM License Service]
-    MAP[Edge Mapping Service (GeoDNS/telemetry)]
+  subgraph DeliveryPlane["Playback and DRM"]
+    PLAY["Playback Service"]
+    MAN["Manifest Service - HLS and DASH"]
+    TOK["Token Service - signed URLs"]
+    DRM["DRM License Service"]
+    MAP["Edge Mapping Service - GeoDNS and telemetry"]
   end
 
-  subgraph CDN["CDN / Open Connect-like"]
-    EDGE1[ISP Edge Cache Cluster]
-    MID[Regional Mid-tier / Shield]
+  subgraph CDN["CDN - Open Connect like"]
+    EDGE1["ISP Edge Cache Cluster"]
+    MID["Regional Mid-tier Shield"]
   end
 
-  subgraph Origin[Origin]
-    OBJ[Object Storage (segments, manifests, tracks)]
+  subgraph Origin["Origin"]
+    OBJ["Object Storage - segments manifests tracks"]
   end
 
-  subgraph DataPlane["Data / ML"]
-    EVT[Watch Event Ingestion]
-    REC[Recommendations]
-    OLAP[Analytics (OLAP)]
+  subgraph DataPlane["Data and ML"]
+    EVT["Watch Event Ingestion"]
+    OLAP["Analytics Store"]
+    REC["Recommendations"]
   end
 
   A -->|HTTPS| G
@@ -63,21 +70,22 @@ flowchart LR
   PLAY --> MAP
   PLAY --> MAN
   MAN --> TOK
-  MAN --> EDGE1
+  TOK --> EDGE1
 
-  A -->|manifest + segments| EDGE1
-  EDGE1 -->|miss| MID --> OBJ
+  A -->|manifest and segments| EDGE1
+  EDGE1 -->|cache miss| MID --> OBJ
 
   A -->|DRM license| DRM
 
-  A -->|watch events| EVT --> OLAP
+  A -->|watch events| EVT
+  EVT --> OLAP
   OLAP --> REC
   REC --> G
 ```
 
 ---
 
-## 2) Playback Start Flow (<2s)
+## 2) Playback Start Flow (under 2 seconds)
 
 ```mermaid
 sequenceDiagram
@@ -86,27 +94,26 @@ sequenceDiagram
   participant GW as API Gateway
   participant P as Playback Service
   participant S as Session Service
-  participant M as Manifest Service
   participant E as Edge Mapping
+  participant M as Manifest Service
   participant CDN as ISP Edge CDN
-  participant DRM as DRM License
+  participant D as DRM License
 
   C->>GW: GET /stream/{titleId}?quality=auto
   GW->>P: authorize request
-  P->>S: validate/create StreamSession
+  P->>S: validate or create stream session
   S-->>P: allowed + sessionId
   P->>E: select best edge cluster
-  E-->>P: edge hostname(s)
-  P->>M: build HLS/DASH master manifest
+  E-->>P: edge hostname list
+  P->>M: build master manifest
   M-->>P: signed manifest URL
   P-->>C: manifest URL + sessionId
 
   C->>CDN: GET master manifest
-  CDN-->>C: 200 (cached)
-  C->>DRM: POST license request
-  DRM-->>C: license (keys)
-
-  C->>CDN: GET first segments (low bitrate)
+  CDN-->>C: 200 cached
+  C->>D: POST license request
+  D-->>C: license keys
+  C->>CDN: GET first segments low bitrate
   CDN-->>C: 200 segments
   Note over C: Playback starts
 ```
@@ -117,35 +124,27 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-  subgraph Forecast
-    H[Historical Views]
-    N[New Releases]
-    L[Locale Signals (language/holidays)]
-    T[Trending Signals]
-    F[Demand Forecast Model]
+  subgraph Signals
+    H["Historical Views"]
+    N["New Releases"]
+    L["Locale Signals - language and holidays"]
+    T["Trending Signals"]
   end
 
-  subgraph Planner
-    P[Placement Planner]
-    C[Capacity Constraints (edge disk/egress)]
-    K[Select Top-K Titles + Variants]
-  end
-
-  subgraph Distribution
-    D[Distribution Scheduler]
-    X[Copy Segments to ISP Edges]
-  end
+  F["Demand Forecast Model"]
+  P["Placement Planner"]
+  C["Capacity Constraints - disk and egress"]
+  K["Select Top Titles and Variants"]
+  D["Distribution Scheduler"]
+  X["Copy Segments to ISP Edges"]
 
   subgraph Edges
-    E1[Edge Cluster A]
-    E2[Edge Cluster B]
-    E3[Edge Cluster C]
+    E1["Edge Cluster A"]
+    E2["Edge Cluster B"]
+    E3["Edge Cluster C"]
   end
 
-  H --> F
-  N --> F
-  L --> F
-  T --> F
+  Signals --> F
   F --> P
   C --> P
   P --> K
@@ -168,16 +167,16 @@ sequenceDiagram
   participant CDN2 as Edge Cluster 2
   participant MID as Mid-tier Shield
 
-  C->>CDN1: GET seg_120 (current bitrate)
-  CDN1--x C: timeout / 5xx
+  C->>CDN1: GET segment 120 current bitrate
+  CDN1--x C: timeout or 5xx
 
-  C->>CDN2: retry seg_120 (alternate edge)
+  C->>CDN2: retry segment 120 alternate edge
   alt cache hit
-    CDN2-->>C: 200 seg_120
+    CDN2-->>C: 200 segment 120
   else cache miss
-    CDN2->>MID: fetch seg_120
-    MID-->>CDN2: 200 seg_120
-    CDN2-->>C: 200 seg_120
+    CDN2->>MID: fetch segment 120
+    MID-->>CDN2: 200 segment 120
+    CDN2-->>C: 200 segment 120
   end
 
   Note over C: ABR may downshift to maintain buffer
