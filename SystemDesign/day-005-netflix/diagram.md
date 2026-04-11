@@ -12,38 +12,43 @@ flowchart LR
     G[API Gateway / Edge]
   end
 
-  subgraph ControlPlane[Control Plane]
+  subgraph ControlPlane["Control Plane"]
     AUTH[Auth Service]
     GEO[Geo / Entitlement Service]
-    SESS[Session Service<br/>(concurrent streams)]
+    SESS["Session Service
+(concurrent streams)"]
     PROF[Profile Service]
   end
 
-  subgraph MetadataPlane[Catalog & Metadata]
+  subgraph MetadataPlane["Catalog & Metadata"]
     CAT[Catalog Service]
     META[Title Metadata Service]
     IMG[Artwork/Image Service]
     SRCH[Search Index]
   end
 
-  subgraph DeliveryPlane[Playback & DRM]
+  subgraph DeliveryPlane["Playback & DRM"]
     PLAY[Playback Service]
-    MAN[Manifest Service<br/>(HLS/DASH)]
-    TOK[Token Service<br/>(signed URLs)]
+    MAN["Manifest Service
+(HLS/DASH)"]
+    TOK["Token Service
+(signed URLs)"]
     DRM[DRM License Service]
-    MAP[Edge Mapping Service<br/>(GeoDNS/telemetry)]
+    MAP["Edge Mapping Service
+(GeoDNS/telemetry)"]
   end
 
-  subgraph CDN[CDN / Open Connect-like]
+  subgraph CDN["CDN / Open Connect-like"]
     EDGE1[ISP Edge Cache Cluster]
-    MID[Regional Mid-tier / Shield]
+    MID["Regional Mid-tier / Shield"]
   end
 
   subgraph Origin[Origin]
-    OBJ[Object Storage<br/>(segments, manifests, tracks)]
+    OBJ["Object Storage
+(segments, manifests, tracks)"]
   end
 
-  subgraph DataPlane[Data / ML]
+  subgraph DataPlane["Data / ML"]
     EVT[Watch Event Ingestion]
     REC[Recommendations]
     OLAP[Analytics (OLAP)]
@@ -119,14 +124,16 @@ flowchart TB
   subgraph Forecast
     H[Historical Views]
     N[New Releases]
-    L[Locale Signals<br/>(language/holidays)]
+    L["Locale Signals
+(language/holidays)"]
     T[Trending Signals]
     F[Demand Forecast Model]
   end
 
   subgraph Planner
     P[Placement Planner]
-    C[Capacity Constraints<br/>(edge disk/egress)]
+    C["Capacity Constraints
+(edge disk/egress)"]
     K[Select Top-K Titles + Variants]
   end
 
@@ -141,18 +148,18 @@ flowchart TB
     E3[Edge Cluster C]
   end
 
-  H-->F
-  N-->F
-  L-->F
-  T-->F
-  F-->P
-  C-->P
-  P-->K
-  K-->D
-  D-->X
-  X-->E1
-  X-->E2
-  X-->E3
+  H --> F
+  N --> F
+  L --> F
+  T --> F
+  F --> P
+  C --> P
+  P --> K
+  K --> D
+  D --> X
+  X --> E1
+  X --> E2
+  X --> E3
 ```
 
 ---
@@ -179,4 +186,3 @@ sequenceDiagram
   end
   Note over C: ABR may downshift to maintain buffer
 ```
-
