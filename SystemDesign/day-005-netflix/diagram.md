@@ -110,6 +110,7 @@ sequenceDiagram
   CDN-->>C: 200 (cached)
   C->>DRM: POST license request
   DRM-->>C: license (keys)
+
   C->>CDN: GET first segments (low bitrate)
   CDN-->>C: 200 segments
   Note over C: Playback starts
@@ -176,6 +177,7 @@ sequenceDiagram
 
   C->>CDN1: GET seg_120 (current bitrate)
   CDN1--x C: timeout / 5xx
+
   C->>CDN2: retry seg_120 (alternate edge)
   alt cache hit
     CDN2-->>C: 200 seg_120
@@ -184,5 +186,6 @@ sequenceDiagram
     MID-->>CDN2: 200 seg_120
     CDN2-->>C: 200 seg_120
   end
+
   Note over C: ABR may downshift to maintain buffer
 ```
