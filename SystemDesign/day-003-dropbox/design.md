@@ -1,333 +1,267 @@
-# design.md — High Level Design (HLD)
+# Day 003 — Design: Cloud Storage (Dropbox)
 
-## 1) High-Level Architecture
-We split the system into two planes:
+## 1. High-Level Architecture
 
-1. **Metadata plane (strong consistency)**: file/folder tree, versions, permissions, share links, search index.
-2. **Data plane (high durability, scalable throughput)**: chunk/blob storage, CDN distribution, background processing.
+```
+Client (Desktop / Mobile / Web)
+    |
+    v
+[CDN]  ←── serves file downloads for hot content
+    |
+    v
+[Load Balancer]
+    |
+    +──► [API Gateway]
+              |
+              +──► [Auth Service]            ← JWT validation
+              |
+              +──► [Metadata Service]        ← file/folder hierarchy, versions, shares
+              |         └──► [PostgreSQL: metadata]
+              |         └──► [Redis: hot metadata cache]
+              |
+              +──► [File Service]            ← upload/download coordination
+              |         └──► [Object Storage (S3)]   ← raw file chunks
+              |         └──► [Dedup Index (Redis/DB)] ← content-hash → chunk ref
+              |
+              +──► [Sync Service]            ← WebSocket; pushes delta events to clients
+              |         └──► [Kafka: file.changed events]
+              |
+              +──► [Notification Service]    ← email/push on share, comment, quota
+              |
+              └──► [Thumbnail Service]       ← async image/video preview generation
 
-### Core Components
-- **API Gateway / Edge**
-  - AuthN/AuthZ (OAuth/JWT), rate limiting, request routing.
-- **Metadata Service**
-  - File/folder CRUD, version pointers, ACLs, share links.
-  - Strongly consistent DB.
-- **Upload Service**
-  - Creates upload sessions, issues pre-signed upload URLs, tracks chunk receipts, commits uploads.
-- **Download Service**
-  - Resolves file version → chunk list → generates signed CDN/object URLs.
-- **Sync Service**
-  - Device state tracking (cursors), change feed, push notifications.
-- **Chunking/Dedup Service**
-  - Client-assisted chunking (rolling hash) and server verification.
-  - Content-addressable storage (CAS) via chunk hashes.
-- **Background Workers**
-  - Thumbnail generation, virus scanning, OCR (optional), retention/GC.
-- **Event Bus**
-  - Kafka/PubSub for metadata change events and processing pipelines.
-- **Search Service**
-  - Name search via inverted index (e.g., Elastic/OpenSearch) or DB secondary index.
-
-### Storage
-- **Metadata DB (strong)**: relational (sharded) or NewSQL (Spanner/Cockroach) for strong consistency.
-- **Object Storage (durable)**: multi-AZ object store for chunks/blobs.
-- **Cache**: Redis/Memcached for hot metadata, share link resolution.
-- **CDN**: edge caching for downloads + thumbnails.
-
----
-
-## 2) Data Model
-### Entities
-
-#### Users
-- `user_id (PK)`
-- `email`, `status`, `plan`, `quota_bytes`, `used_bytes`
-
-#### Devices
-- `device_id (PK)`, `user_id (FK)`
-- `last_seen`, `client_version`
-- `sync_cursor` (monotonic position in change feed)
-
-#### Folders
-- `folder_id (PK)`
-- `owner_user_id`
-- `parent_folder_id` (nullable for root)
-- `name`
-- `created_at`, `updated_at`
-- `deleted_at` (nullable; soft delete/trash)
-
-#### Files (logical file entry)
-- `file_id (PK)`
-- `owner_user_id`
-- `parent_folder_id`
-- `name`
-- `mime_type`
-- `current_version_id`
-- `is_deleted`, `deleted_at`
-- `created_at`, `updated_at`
-
-#### FileVersions
-- `version_id (PK)`
-- `file_id (FK)`
-- `version_number` (1..N)
-- `size_bytes`
-- `content_manifest_id` (points to ordered list of chunks)
-- `etag` (hash of manifest)
-- `created_by_device_id`
-- `created_at`
-
-#### Manifests
-Represents an ordered list of chunks.
-- `manifest_id (PK)`
-- `chunks` (list of `(chunk_hash, offset, length)`)
-- `total_size`
-- `rolling_hash_params` (optional)
-
-#### Chunks (content-addressed)
-- `chunk_hash (PK)` (SHA-256)
-- `size_bytes`
-- `storage_object_key`
-- `ref_count`
-- `created_at`
-
-#### Shares / ACLs
-- `share_id (PK)`
-- `resource_type` (file|folder)
-- `resource_id`
-- `grantee_user_id` (or group)
-- `permission` (view|edit)
-- `created_at`, `expires_at (optional)`
-
-#### ChangeLog (for sync)
-Append-only log of metadata changes.
-- `seq (PK, monotonic)`
-- `user_id` (partition key)
-- `event_type` (create/update/delete/move/share/version)
-- `resource_id`, `resource_type`
-- `payload` (small JSON)
-- `created_at`
-
-> Strong metadata: file tree, versions, ACLs live in strongly consistent DB.
-> Eventual sync: clients converge via ChangeLog + retries.
+Background Workers:
+  ├── Version Cleanup Worker  (prune versions beyond limit)
+  ├── Quota Enforcement Worker
+  └── Virus Scan Worker
+```
 
 ---
 
-## 3) Key Workflows
+## 2. Core Services and Responsibilities
 
-### A) Chunked, Resumable Upload (5 GB)
-**Goal**: tolerate network drops, allow resume, maximize throughput.
+### API Gateway
+- Routes to Auth, Metadata, File, Sync services
+- Enforces per-user rate limits
+- SSL termination
 
-#### API Sequence
-1) `POST /files/upload` → creates **upload session**
-   - Request: `{ parentFolderId, fileName, sizeBytes, mimeType, clientChunking: true/false }`
-   - Response: `{ fileId, uploadId, preferredChunkSize, uploadUrls: [...] }`
+### Metadata Service
+- Manages the virtual file tree (folders, file names, paths)
+- Stores file versions, owner, permissions, share links
+- Does NOT store file bytes — only references to object storage
+- Handles rename, move, delete, restore, version history
 
-2) Client splits file into chunks (e.g., 4–16 MB) using **content-defined chunking** (CDC) for better delta sync.
-   - For each chunk: compute `chunk_hash`.
+### File Service (Upload / Download)
+- Receives chunked uploads; each chunk identified by its SHA-256 hash
+- Performs **content-addressable storage**: if chunk hash already exists, skip upload (deduplication)
+- Generates pre-signed S3 URLs for direct client → S3 uploads (off-loads bandwidth from app servers)
+- Supports **resumable uploads**: client tracks which chunks are committed; resumes from last chunk on reconnect
 
-3) Client asks server which chunks are missing:
-   - `POST /uploads/{uploadId}/chunks:check` with list of `chunk_hash`.
-   - Server returns missing hashes.
+### Sync Service
+- Maintains a persistent WebSocket connection per client session
+- When a file changes, publishes a `file.changed` event to Kafka
+- Kafka consumers fan-out the event to all affected client sessions (e.g., all devices of a user, or all collaborators in a shared folder)
+- Client receives delta event → pulls only changed metadata + new chunks
 
-4) Client uploads only missing chunks via **pre-signed URLs** directly to object storage:
-   - `PUT {signedUrl}` per chunk (or multipart upload).
-
-5) Client commits upload:
-   - `POST /uploads/{uploadId}/commit` with ordered chunk list (manifest).
-   - Metadata Service creates new FileVersion, updates `current_version_id`, appends ChangeLog events.
-
-#### Resuming
-- Upload session stores received chunk hashes and expiry.
-- Client can call `GET /uploads/{uploadId}` to resume (returns missing chunks).
-
-#### Idempotency
-- `uploadId` + `chunk_hash` makes chunk PUT idempotent.
-- `commit` uses an idempotency key to avoid double version creation.
-
----
-
-### B) Download
-1) `GET /files/{fileId}`
-2) Download Service checks ACL → resolves `current_version_id` → manifest.
-3) Returns either:
-   - a single signed URL for a packed object (optional optimization), or
-   - a manifest with signed URLs per chunk (client reassembles), or
-   - a CDN URL for cached blob.
-
-**Hot path optimization**:
-- For small files store as single object; for large files chunked.
-- CDN caches popular content; signed URLs prevent unauthorized access.
+### Deduplication Index
+- Maps `SHA-256(chunk)` → S3 object key
+- Before uploading any chunk, client or File Service checks this index
+- If hash exists → skip upload, just record the reference (zero-byte upload for unchanged content)
+- Enables: 1,000 users uploading the same file → stored once
 
 ---
 
-### C) Sync Across Devices
-**Model**: per-user change feed with cursor.
+## 3. Key Design Decision: Chunked Upload Strategy
 
-1) Device subscribes:
-   - `GET /sync/changes?cursor=...` returns list of changes + new cursor.
-2) Server can also push hints via WebSocket / push notifications (APNS/FCM) to reduce polling.
-3) Device applies metadata changes and downloads/upload deltas as needed.
+Files are split into fixed-size chunks (e.g., 4 MB each) before upload.
 
-**Eventual consistency**:
-- Change events propagate asynchronously.
-- Metadata changes are strongly consistent at source of truth; devices converge.
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| Single-file upload | Simple | Entire upload fails on network drop; no parallelism | No |
+| Chunked sequential upload | Resumable; smaller retries | Still slow for large files | Partial |
+| Chunked parallel upload | Resumable + fast (parallel chunk upload to S3) | Client complexity | **Yes** |
 
----
-
-### D) Offline Mode
-- Client maintains a **local journal** of operations:
-  - rename/move/delete, plus new content manifests.
-- When online:
-  - Replays operations with idempotency keys.
-  - Sync engine fetches remote changes and resolves conflicts.
+**Flow:**
+1. Client splits file into 4 MB chunks.
+2. Client sends chunk hashes to File Service (`POST /upload/init`).
+3. File Service responds: "upload chunks X, Y, Z" (skipping already-known hashes).
+4. Client uploads only missing chunks directly to S3 via pre-signed URLs.
+5. Client sends `POST /upload/complete` — File Service assembles the manifest.
+6. Metadata Service creates/updates the file record.
 
 ---
 
-### E) Versioning (last 30)
-- Each committed upload creates a new `FileVersion` referencing a manifest.
-- Maintain last **30** versions per file.
-- Older versions are marked for deletion; chunk refcounts decremented by GC worker.
+## 4. Key Design Decision: Delta Sync
 
-**Restore**:
-- `POST /files/{fileId}/restore` with `version_id`.
-- Creates a new version whose manifest points to restored version (fast, metadata-only) and updates current pointer.
+When a 500 MB file changes by 2 KB, we must not re-upload the entire file.
 
----
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| Re-upload entire file | Simple | Wastes bandwidth | No |
+| Block-level diff (rsync algorithm) | Only sends changed blocks | Requires block inventory on client | **Yes** |
 
-### F) Sharing (file/folder)
-- Share entry created in `Shares/ACLs`.
-- Permission evaluation during metadata and download:
-  - direct ownership OR share grants via folder inheritance.
-- Optional: share links with token (`/s/{token}`) + expiry.
+**How it works:**
+- Client maintains a local manifest: `{chunkIndex → SHA-256}` for every file.
+- On file change, client recomputes chunk hashes and diffs against the stored manifest.
+- Only chunks whose hash changed are uploaded.
+- Result: a 500 MB file with a 2 KB edit → upload ~4 MB (one changed chunk).
 
 ---
 
-### G) Search by Name
-- Name-only search:
-  - Option A: DB index on `(owner_user_id, name_prefix)` for prefix search.
-  - Option B: Async indexing to Search Service for fuzzy search.
+## 5. Key Design Decision: Conflict Resolution
+
+Two devices edit the same file simultaneously while offline.
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| Last-write-wins | Simple | Silent data loss | No |
+| Server-side merge | Works for text/code | Complex; breaks binary files | No |
+| Create conflict copy | Safe; no data loss | User must resolve manually | **Yes** |
+
+**Dropbox approach:** When device A's change and device B's change are both uploaded, the Sync Service detects the diverged parent version and creates `filename (Device A's conflicted copy).ext`. Both versions are preserved. User resolves manually.
 
 ---
 
-### H) Thumbnails (Async)
-- On new image/PDF upload commit → publish `FILE_VERSION_CREATED` event.
-- Worker downloads needed bytes (range requests), generates thumbnail variants, stores in object storage, updates metadata.
+## 6. Data Model
+
+### files
+
+| Column | Type | Notes |
+|--------|------|-------|
+| file_id | UUID PK | Unique file identity |
+| owner_id | UUID | Owning user |
+| parent_folder_id | UUID NULL | NULL = root |
+| name | VARCHAR(255) | File name in this folder |
+| is_deleted | BOOLEAN | Soft delete |
+| created_at | TIMESTAMP | |
+| updated_at | TIMESTAMP | |
+
+### file_versions
+
+| Column | Type | Notes |
+|--------|------|-------|
+| version_id | UUID PK | |
+| file_id | UUID | FK → files |
+| size_bytes | BIGINT | |
+| content_hash | CHAR(64) | SHA-256 of full content |
+| chunk_manifest | JSONB | `[{index, hash, s3_key}]` |
+| created_by_device | VARCHAR | Device identifier |
+| created_at | TIMESTAMP | |
+
+### folders
+
+| Column | Type | Notes |
+|--------|------|-------|
+| folder_id | UUID PK | |
+| owner_id | UUID | |
+| parent_folder_id | UUID NULL | NULL = root |
+| name | VARCHAR(255) | |
+| is_deleted | BOOLEAN | |
+
+### shares
+
+| Column | Type | Notes |
+|--------|------|-------|
+| share_id | UUID PK | |
+| resource_id | UUID | File or folder |
+| resource_type | VARCHAR | 'file' or 'folder' |
+| shared_with_user_id | UUID NULL | NULL = public link |
+| permission | VARCHAR | 'view' or 'edit' |
+| link_token | CHAR(32) NULL | For public link sharing |
+
+### chunk_dedup_index
+
+| Column | Type | Notes |
+|--------|------|-------|
+| chunk_hash | CHAR(64) PK | SHA-256 of chunk bytes |
+| s3_key | VARCHAR | Location in object storage |
+| ref_count | INT | How many versions reference this chunk |
+| created_at | TIMESTAMP | |
+
+**Indexes:**
+- `files`: index on `(owner_id, parent_folder_id, is_deleted)`
+- `file_versions`: index on `(file_id, created_at DESC)`
+- `shares`: index on `(shared_with_user_id)` for "shared with me" view
 
 ---
 
-## 4) Consistency & Concurrency
+## 7. Request Flows
 
-### Metadata
-- Strong consistency via transactions:
-  - rename/move updates folder entries atomically.
-  - version creation updates file pointer + changelog in one transaction.
+### Upload File (new or updated)
 
-### Conflict Resolution
-When the same logical file is edited concurrently (especially offline):
-- Use `base_version_id` provided by client on commit.
-- If server current != base:
-  - If file is binary or merge not supported → create **conflicted copy**:
-    - `filename (conflicted copy from <device> at <time>)`
-  - If text and merge supported (optional) → attempt 3-way merge.
+1. Client computes chunk hashes for the file.
+2. `POST /upload/init` → sends `{fileId, versionParentId, chunkHashes[]}`.
+3. File Service checks dedup index → returns list of chunks to actually upload.
+4. File Service generates pre-signed S3 URLs for each needed chunk.
+5. Client uploads chunks directly to S3 in parallel.
+6. Client calls `POST /upload/complete` with chunk manifest.
+7. File Service writes new entry to `chunk_dedup_index` for new chunks.
+8. Metadata Service creates new `file_versions` row + updates `files.updated_at`.
+9. File Service publishes `file.changed` event to Kafka.
+10. Sync Service delivers delta event to all connected clients of the same user.
 
-### Last Writer Wins vs Conflicted Copy
-- Default: **conflicted copy** (Dropbox-style) to avoid silent data loss.
+### Download File
 
----
+1. `GET /files/{fileId}?version={versionId}` → Metadata Service returns chunk manifest.
+2. File Service generates pre-signed S3 URLs for each chunk (or redirects via CDN).
+3. Client downloads chunks in parallel and assembles locally.
 
-## 5) Storage Backend Choice
-### Object Storage vs Block Storage
-- **Object storage** fits best: huge scale, immutable blobs, cheap, multi-AZ durability.
-- Blocks/chunks are natural objects; manifests provide file assembly.
+### Sync on Reconnect (client comes back online)
 
-### Content-Addressable Storage (Dedup)
-- Store chunks by `chunk_hash`.
-- If 1,000 users upload same file/chunks, only one copy stored; metadata references shared chunks.
-- Refcount + GC to reclaim when no versions reference a chunk.
-
-### Delta Sync
-- With CDC, small edits change only nearby chunks; only changed chunks re-upload.
+1. Client sends `GET /sync/delta?since={lastSyncTimestamp}`.
+2. Sync Service returns list of `file.changed` events since that timestamp.
+3. Client applies deltas: downloads changed files, moves/renames, deletes.
 
 ---
 
-## 6) API Details (Extended)
+## 8. Caching Strategy
 
-### Upload
-- `POST /files/upload`
-  - Creates file entry (or placeholder) + upload session.
-
-- `POST /uploads/{uploadId}/chunks:check`
-  - Request: `{ chunkHashes: [...] }`
-  - Response: `{ missing: [...], present: [...] }`
-
-- `POST /uploads/{uploadId}/chunkUrls`
-  - Request: `{ chunkHashes: [...], sizes: [...] }`
-  - Response: `{ urls: { chunkHash: signedUrl } }`
-
-- `POST /uploads/{uploadId}/commit`
-  - Request: `{ fileId, baseVersionId, manifest: [...], totalSize, idempotencyKey }`
-  - Response: `{ versionId, etag }`
-
-### Metadata ops
-- `PUT /files/{fileId}/rename` `{ newName }`
-- `PUT /files/{fileId}/move` `{ newParentFolderId }`
-- `DELETE /files/{fileId}` (soft delete → trash)
-
-### Versions
-- `GET /files/{fileId}/versions`
-- `POST /files/{fileId}/restore` `{ versionId }`
-
-### Sharing
-- `POST /files/{fileId}/share` `{ granteeUserId, permission }`
-- `POST /folders/{folderId}/share` `{ granteeUserId, permission }`
-
-### Sync
-- `GET /sync/changes?cursor=...&limit=...`
-- `POST /sync/ack` (optional)
+- **Hot file metadata:** Redis, key = `file:{fileId}:latest`, TTL = 5 minutes
+- **Chunk dedup index:** Redis hash for frequently checked chunk hashes (L1 before DB)
+- **CDN:** Caches S3 signed URLs for publicly shared files or thumbnails
+- **Negative cache:** Short TTL (30 s) for "file not found" to protect DB
 
 ---
 
-## 7) Scalability Plan
+## 9. Scalability Plan
 
-### Partitioning
-- Shard metadata by `user_id` (owner) to localize file tree operations.
-- Changelog partitioned by `user_id` for efficient sync streaming.
+### Read scaling
+- Metadata Service: stateless, horizontal scaling; read replicas for DB
+- File download: direct S3 or CDN — completely bypasses app servers
 
-### Caching
-- Cache folder listings and file metadata (short TTL + invalidation via events).
-- CDN for downloads/thumbnails.
+### Write scaling
+- File upload: goes directly to S3 via pre-signed URLs — app server only coordinates
+- Metadata writes: PostgreSQL primary; partition `file_versions` by `file_id` hash if very large
 
-### Multi-Region
-- Active-active metadata per region is complex with strong consistency; practical approach:
-  - Choose a **home region per user** for metadata writes.
-  - Read replicas in other regions; client routed to home for writes.
-- Data plane (object storage) replicated multi-AZ and optionally cross-region.
-
-### Hot-Spot Mitigation
-- Large shared folders: use pagination and maintain materialized views per folder.
-- Share ACL evaluation cached.
+### Storage growth
+- Object storage (S3): natively scalable, charged per GB — no management needed
+- Dedup reduces storage by 20-60% in practice
+- Lifecycle policies move old versions to S3 Glacier after 30 days
 
 ---
 
-## 8) Security
-- TLS everywhere, signed URLs for blob access.
-- Encryption at rest (KMS-managed keys).
-- Per-tenant quotas, abuse detection.
-- Virus/malware scanning pipeline.
+## 10. Reliability and Resilience
+
+- **Multi-AZ:** All services, DB, Redis, and Kafka deployed across 3 availability zones
+- **S3 durability:** 99.999999999% — no additional replication needed
+- **Chunk integrity:** SHA-256 verified after each chunk upload; corrupt chunks are re-uploaded
+- **Sync delivery guarantee:** Kafka ensures at-least-once delivery of change events; clients apply events idempotently
+- **Quota enforcement:** Soft quota warnings at 90%; hard stop at 100% with clear error message
 
 ---
 
-## 9) Observability
-- Metrics: upload success rate, chunk dedup ratio, sync lag, metadata p99 latency.
-- Tracing across API → DB → object store.
-- Audit logs for share and delete actions.
+## 11. SLOs and Key Metrics
 
----
+**Latency targets:**
+- Metadata API P99 < 100 ms
+- Sync delta delivery P99 < 5 seconds from upload completion
+- Thumbnail generation: < 30 seconds (async, non-blocking)
 
-## 10) What Happens on Delete?
-- Soft delete → Trash (retention window configurable).
-- Permanent delete triggers:
-  - remove metadata pointers
-  - decrement chunk refcounts
-  - GC removes chunks with `ref_count == 0`.
+**Availability target:** 99.99%
 
+**Key metrics:**
+- Upload success rate and average chunk re-upload rate
+- Sync lag (time between upload and client receiving delta event)
+- Dedup ratio (bytes saved / bytes uploaded)
+- Quota utilization distribution across users
+- Virus scan queue depth and processing lag

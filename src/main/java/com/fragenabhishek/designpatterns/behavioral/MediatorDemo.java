@@ -1,3 +1,5 @@
+package com.fragenabhishek.designpatterns.behavioral;
+
 /*
  * =====================================================
  *  MEDIATOR PATTERN (Behavioral)
@@ -33,7 +35,6 @@
  *              chat rooms, air traffic control systems
  * =====================================================
  */
-package com.fragenabhishek.designpatterns.behavioral;
 
 interface Mediator{
     void notify(Component sender, String event);

@@ -1,136 +1,105 @@
-# trade-offs.md — Design Decisions, Trade-offs & Failure Modes
+# Day 003 — Trade-offs: Cloud Storage (Dropbox)
 
-## 1) Metadata DB Choice
-### Decision
-Use a **strongly consistent** database for metadata (relational/NewSQL).
+## 1. Core Decisions
 
-### Why
-- Rename/move/version pointer updates require atomic transactions.
-- Sharing/ACL checks and folder listings rely on consistent state.
+### Chunked parallel upload vs single-file upload
 
-### Trade-offs
-- Strong consistency across regions is costly (latency, complexity).
-- Mitigation: assign a **home region** for metadata writes; use read replicas.
+| Option | Pros | Cons | Decision |
+|--------|------|------|----------|
+| Single upload | Simple client | All-or-nothing; no partial resume; slow for large files | No |
+| Chunked sequential | Resumable | Slow; no parallelism | No |
+| Chunked parallel + pre-signed S3 URLs | Fast, resumable, zero app-server bandwidth | Client complexity; more round-trips | **Yes** |
 
----
-
-## 2) Object Storage for File Data
-### Decision
-Store file bytes in **object storage** as immutable **chunks**, referenced by manifests.
-
-### Why
-- Massive scale, durability, cheap storage.
-- Immutable objects align with versioning and dedup.
-
-### Trade-offs
-- Assembling chunks adds overhead for downloads.
-- Mitigations:
-  - For small files store as single object.
-  - For large, optionally create a packed/compacted object in background.
+**Rationale:** A 5 GB file on a mobile connection may take 30+ minutes. Without resumability, every dropout restarts the upload. Parallel chunk uploads max out available bandwidth. Pre-signed URLs mean app servers never touch file bytes — they only coordinate metadata.
 
 ---
 
-## 3) Chunking Strategy: Fixed vs Content-Defined (CDC)
-### Decision
-Prefer **content-defined chunking** for delta sync.
+### Metadata in SQL vs NoSQL
 
-### Why
-- If bytes are inserted in the middle, fixed chunking invalidates all subsequent chunks.
-- CDC (rolling hash) keeps boundaries stable → only small region changes.
+| Option | Pros | Cons | Decision |
+|--------|------|------|----------|
+| PostgreSQL (relational) | Joins across files/folders/versions/shares; ACID; rich querying | Vertical scale limits at extreme scale | **Yes (V1)** |
+| DynamoDB / Cassandra | Massive horizontal scale | No joins; complex queries for folder trees and version history | Later if needed |
 
-### Trade-offs
-- Client complexity and CPU cost.
-- Mitigation: adapt chunk size; allow fallback to fixed chunking for low-power devices.
+**Rationale:** File metadata is relational by nature — file lives in folder, folder has owner, file has versions, version has chunks, file is shared with users. SQL joins are natural. Migrate to NoSQL only when single-region PostgreSQL saturates.
 
 ---
 
-## 4) Deduplication Granularity
-### Decision
-Dedup at **chunk level** using content hash (CAS).
+### Content-addressable storage (CAS) for deduplication
 
-### Why
-- Handles identical files and partially identical files.
+| Option | Pros | Cons | Decision |
+|--------|------|------|----------|
+| Store every upload as a new S3 object | Simple | 1,000 users upload same file → 1,000 copies stored | No |
+| CAS: SHA-256(chunk) → deduplicated S3 object | Massive storage savings (20-60%) | Hash collision risk (negligible); chunk index overhead | **Yes** |
 
-### Trade-offs
-- Requires refcounting and GC.
-- Hash collisions are extremely unlikely with SHA-256; still treat as untrusted and verify size/optional secondary hash.
+**Rationale:** At 500M users, without dedup, popular files (e.g., shared corporate documents, software installers) would be stored millions of times. CAS eliminates that. SHA-256 collision probability is negligible (~10⁻⁷⁷ per pair) and acceptable.
 
 ---
 
-## 5) Sync: Polling vs Push
-### Decision
-Use a **change feed + cursor**; optionally add push notifications to wake clients.
+### Conflict resolution strategy
 
-### Why
-- Pure push is hard on mobile networks; pure polling wastes resources.
+| Option | Pros | Cons | Decision |
+|--------|------|------|----------|
+| Last-write-wins | Zero user friction | Silently loses work — unacceptable | No |
+| Server-side merge (OT/CRDT) | Seamless UX | Works only for plain text; breaks binary, Office files | No |
+| Conflict copy (both versions preserved) | No data loss; always safe | User must manually merge | **Yes** |
 
-### Trade-offs
-- Eventual consistency: devices may lag.
-- Mitigation: push hints + client backoff and periodic full reconciliation.
-
----
-
-## 6) Conflict Resolution
-### Decision
-Default to **conflicted copies** when concurrent edits detected.
-
-### Why
-- Avoid silent data loss.
-
-### Trade-offs
-- User may see duplicate files.
-- Mitigation: UI highlights conflicts; optional merge for text.
+**Rationale:** Dropbox and most cloud storage systems choose conflict copies because they support all file types uniformly. For text/code files, this is slightly worse UX than a merge — but it is safe for every file format.
 
 ---
 
-## 7) Versioning Storage Cost
-### Decision
-Keep last **30 versions** (as required) via manifests referencing chunks.
+### Sync delivery: polling vs WebSocket vs webhook
 
-### Why
-- Manifest indirection makes versions cheap when changes are small.
+| Option | Pros | Cons | Decision |
+|--------|------|------|----------|
+| Client polling (e.g., every 30 s) | Simple server; stateless | High latency for sync; wasteful at scale | No |
+| WebSocket (persistent connection) | Near-real-time delivery; efficient | Server must manage millions of open connections | **Yes** |
+| Webhook (push to client) | Server-initiated | Mobile clients can't receive webhooks when backgrounded | No for mobile |
 
-### Trade-offs
-- Worst case (encrypted/compressed binaries) changes all chunks each time → storage grows.
-- Mitigation: enforce per-user quota; server-side compaction; configurable retention.
-
----
-
-## 8) Failure Modes & Handling
-
-### A) Upload Interrupted Midway
-- Upload session persists chunk receipts.
-- Client resumes by querying missing chunks.
-
-### B) Duplicate Commit / Retries
-- Use idempotency keys and transactional commit.
-
-### C) Object Store Outage / Partial Failure
-- Multi-AZ replication.
-- Retry PUTs with exponential backoff.
-- Commit only after all chunks confirmed durable.
-
-### D) Metadata DB Failover
-- Use leader election/failover.
-- Ensure changelog and file pointer update in same transaction.
-
-### E) Event Bus Lag
-- Sync still works via periodic polling of changes; event bus used for near-real-time hints and async jobs.
-
-### F) Garbage Collection Bugs
-- GC is dangerous: can delete live data.
-- Use safety measures:
-  - two-phase deletion (mark → sweep)
-  - verify refcount snapshots
-  - delay physical deletes
-
-### G) Sharing Permission Leakage
-- Ensure signed URLs are short-lived and bound to auth context.
-- Validate ACL on each URL generation.
+**Rationale:** Dropbox uses a long-polling / WebSocket hybrid. The persistent connection enables near-real-time sync (< 5 s) without repeated polling. Kafka absorbs change events and fans out to the correct connected clients.
 
 ---
 
-## 9) Operational Trade-offs
-- **Home region for metadata** simplifies strong consistency but adds latency for traveling users.
-- **Edge caching** reduces latency but complicates immediate revocation; mitigate via short TTL and token revocation lists.
+## 2. Secondary Trade-offs
 
+### Version retention limit
+- Keep last 30 versions (or 30 days for free tier; 180 days for paid).
+- Trade-off: simpler storage and quota management vs occasionally losing older versions.
+- Background worker prunes versions asynchronously — no impact on hot path.
+
+### Chunk size (4 MB)
+- Smaller chunks → better dedup granularity, more round-trips.
+- Larger chunks → fewer round-trips, worse dedup for small changes.
+- 4 MB is the Dropbox-published chunk size; good balance.
+
+### Pre-signed URL expiry
+- URLs expire in 15 minutes — short enough to prevent link sharing but long enough for large uploads.
+- If upload of a chunk takes longer (slow connection), client requests a fresh URL.
+
+### Thumbnail generation
+- Async (non-blocking): thumbnail failure never blocks file access.
+- Trade-off: short delay before preview appears in UI. Acceptable.
+
+---
+
+## 3. Failure Modes and Mitigations
+
+| Failure Mode | Impact | Mitigation |
+|--------------|--------|------------|
+| File Service unavailable | Cannot coordinate uploads | Multi-AZ; circuit breaker; retry in client |
+| S3 region outage | Upload/download failure | S3 cross-region replication for critical data |
+| Kafka lag (sync delay) | Sync notifications delayed | Monitor consumer lag; add partitions; auto-scale consumers |
+| Dedup index inconsistency | Chunks thought to exist but deleted | Ref-count with periodic GC sweep |
+| Conflict not detected | Silent data loss | Detect at upload via parent version ID mismatch |
+| Client crash mid-upload | Partial upload | Client re-reads manifest on next open; resumes from last committed chunk |
+| Virus scan queue backup | Infected files briefly accessible | Quarantine flag set at scan start; released on clean result |
+| Quota exceeded silently | User loses data | Soft warning at 80%; hard stop at 100%; email notification |
+
+---
+
+## 4. Migration Triggers (When to Re-architect)
+
+- Metadata DB write throughput exceeds PostgreSQL capacity → shard by `owner_id` or move file_versions to Cassandra
+- Sync Service can't maintain millions of WebSocket connections on current fleet → add connection multiplexing (e.g., QUIC) or sharded connection pools
+- Dedup index outgrows Redis memory → move to persistent distributed hash store (DynamoDB or RocksDB-based)
+- Global users need data residency (GDPR) → introduce regional data plane with cross-region metadata replication only for indexes

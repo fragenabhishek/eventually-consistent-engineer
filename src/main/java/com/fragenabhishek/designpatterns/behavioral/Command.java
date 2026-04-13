@@ -103,7 +103,6 @@ class Invoker {
             undoStack.push(cmd);
         }
     }
-
 }
 
 // --- Demo ---

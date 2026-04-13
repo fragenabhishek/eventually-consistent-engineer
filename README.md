@@ -94,7 +94,8 @@ Each day folder contains: `README.md` (problem + requirements), `design.md` (HLD
 | 002 | [File Sharing (Pastebin)](SystemDesign/day-002-file-sharing/README.md) | ✅ Done (full design) |
 | 003 | [Cloud Storage (Dropbox)](SystemDesign/day-003-dropbox/README.md) | 📋 Requirements ready — design it! |
 | 004 | [Video Streaming (YouTube)](SystemDesign/day-004-youtube/README.md) | 📋 Requirements ready — design it! |
-| 005–020 | [Full roadmap (all requirements written)](SystemDesign/README.md) | 📋 Requirements ready |
+| 005 | [Netflix (Streaming + CDN)](SystemDesign/day-005-netflix/README.md) | ✅ Fully solved |
+| 006–020 | [Full roadmap (all requirements written)](SystemDesign/README.md) | 📋 Requirements ready — design it! |
 
 ---
 

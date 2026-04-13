@@ -18,9 +18,9 @@ import java.util.function.Supplier;
  *            zero changes to existing code.
  *
  *  Structure:
- *    NotificationChannel      →  Product interface (what all notifications can do)
- *    EmailNotification, etc.  →  Concrete Products
- *    NotificationFactory      →  Factory (Map<String, Supplier> for O(1) lookup)
+ *    NotificationChannel                →  Product interface (what all channels can do)
+ *    EmailChannel, SMSChannel, etc.     →  Concrete Products
+ *    NotificationFactory                →  Factory (Map<String, Supplier> for O(1) lookup)
  *
  *  Why Map<String, Supplier> instead of switch/if-else?
  *    - Open for extension: register new types without modifying factory code
@@ -38,21 +38,21 @@ interface NotificationChannel {
 
 // --- Concrete Products ---
 
-class EmailNotification implements NotificationChannel {
+class EmailChannel implements NotificationChannel {
     @Override
     public void notifyUser() {
         System.out.println("Sending Email Notification");
     }
 }
 
-class SMSNotification implements NotificationChannel {
+class SMSChannel implements NotificationChannel {
     @Override
     public void notifyUser() {
         System.out.println("Sending SMS Notification");
     }
 }
 
-class PushNotification implements NotificationChannel {
+class PushChannel implements NotificationChannel {
     @Override
     public void notifyUser() {
         System.out.println("Sending PUSH Notification");
@@ -65,9 +65,9 @@ class NotificationFactory {
     private static final Map<String, Supplier<NotificationChannel>> registry = new HashMap<>();
 
     static {
-        registry.put("EMAIL", EmailNotification::new);
-        registry.put("SMS", SMSNotification::new);
-        registry.put("PUSH", PushNotification::new);
+        registry.put("EMAIL", EmailChannel::new);
+        registry.put("SMS", SMSChannel::new);
+        registry.put("PUSH", PushChannel::new);
     }
 
     public static NotificationChannel createNotification(String type) {
