@@ -1,4 +1,4 @@
-# trade-offs.md — Decisions, Trade-offs & Failure Modes
+# Day 004 — Trade-offs: Video Streaming (YouTube)
 
 ## 1) Async Transcoding vs Synchronous
 **Decision:** Upload API only finalizes the raw asset; transcoding runs **asynchronously** via queue + workers.

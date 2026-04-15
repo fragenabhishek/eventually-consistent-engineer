@@ -1,4 +1,4 @@
-# design.md — High Level Design (HLD)
+# Day 005 — Design: Streaming Platform (Netflix)
 
 ## 1) High-Level Architecture (Netflix-like)
 We separate the system into 4 planes:

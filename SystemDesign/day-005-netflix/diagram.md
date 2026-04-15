@@ -1,9 +1,4 @@
-# diagram.md — Mermaid Architecture & Data Flow Diagrams (GitHub-safe)
-
-> Copy-paste this whole file directly into `diagram.md` on GitHub.
-> ✅ No HTML entities (`&gt;`, `&lt;`, `&amp;`)
-> ✅ No multi-line node labels
-> ✅ Avoids parentheses in node labels (common cause of GitHub Mermaid parse errors)
+# Day 005 — Diagrams: Streaming Platform (Netflix)
 
 ---
 

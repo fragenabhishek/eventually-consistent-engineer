@@ -1,4 +1,4 @@
-# design.md — High Level Design (HLD)
+# Day 004 — Design: Video Streaming (YouTube)
 
 ## 1) High-Level Architecture
 The system is split into planes:

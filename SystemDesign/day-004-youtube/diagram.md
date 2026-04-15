@@ -1,4 +1,4 @@
-# diagram.md — ASCII Architecture & Data Flow Diagrams
+# Day 004 — Diagrams: Video Streaming (YouTube)
 
 ## 1) High-Level Architecture
 

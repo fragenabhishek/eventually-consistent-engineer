@@ -1,4 +1,4 @@
-# trade-offs.md — Decisions, Trade-offs, Failure Modes
+# Day 005 — Trade-offs: Streaming Platform (Netflix)
 
 ## 1) Push-based CDN (Pre-positioning) vs Pull-only CDN
 **Decision:** Use **push-first** pre-positioning to ISP edges, with pull-on-miss fallback.

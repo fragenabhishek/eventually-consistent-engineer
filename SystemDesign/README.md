@@ -78,7 +78,7 @@ Work through in this order. Each group builds on the previous.
 | 003 | [day-003-dropbox](./day-003-dropbox/README.md) | Cloud Storage (Dropbox) | Storage / Sync | ✅ Fully solved |
 | 004 | [day-004-youtube](./day-004-youtube/README.md) | Video Streaming (YouTube) | Streaming / CDN | ✅ Fully solved |
 | 005 | [day-005-netflix](./day-005-netflix/README.md) | Netflix (Streaming + CDN) | Streaming / CDN | ✅ Fully solved |
-| 006 | [day-006-instagram](./day-006-instagram/README.md) | Instagram (Photo Feed) | Social / Feed | 📋 Requirements ready — design it! |
+| 006 | [day-006-instagram](./day-006-instagram/README.md) | Instagram (Photo Feed) | Social / Feed | ✅ Fully solved |
 | 007 | [day-007-twitter](./day-007-twitter/README.md) | Twitter (Social Feed + Timeline) | Social / Feed | 📋 Requirements ready — design it! |
 | 008 | [day-008-whatsapp](./day-008-whatsapp/README.md) | WhatsApp (Chat / Messaging) | Messaging / Real-time | 📋 Requirements ready — design it! |
 | 009 | [day-009-uber](./day-009-uber/README.md) | Uber (Ride-Sharing / Location) | Geospatial / Real-time | 📋 Requirements ready — design it! |
@@ -137,5 +137,5 @@ Work through in this order. Each group builds on the previous.
 
 ---
 
-> **Reference designs:** See `day-001-tiny-url/` and `day-002-file-sharing/` and `day-003-dropbox/` for fully worked examples.  
+> **Reference designs:** See `day-001-tiny-url/`, `day-002-file-sharing/`, `day-003-dropbox/`, `day-004-youtube/`, `day-005-netflix/`, and `day-006-instagram/` for fully worked examples.  
 > **Blank template:** Copy `TEMPLATE.md` into your day folder as a starting point for `design.md`.
