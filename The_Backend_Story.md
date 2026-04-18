@@ -78,6 +78,7 @@ public class BankAccount {
 ### 3. Inheritance
 **What:** Reuse and extend behaviour from a parent class.  
 **Real example:** `HttpPaymentProcessor extends BasePaymentProcessor` inherits retry logic and connection handling, adds only HTTP-specific code.
+**Key rule:** use it only for true “is-a” relationships (aligned with Liskov Substitution Principle).
 
 > **Gotcha:** Prefer **composition over inheritance**. Inheritance creates tight coupling. Use inheritance only for true "is-a" relationships.
 
