@@ -317,7 +317,12 @@ public final class Money {
     public List<String> getTags() { return Collections.unmodifiableList(tags); }
 }
 ```
+Use cases:
 
+Thread-safe sharing (no locks needed)
+Safe keys in hash collections (stable hashCode)
+Caching/reuse
+Financial/data objects (like Money)
 **Why String is immutable:** Thread-safe, cacheable (string pool), safe as HashMap key (hashCode cached), security (class names, file paths cannot be changed after creation).
 
 ---
