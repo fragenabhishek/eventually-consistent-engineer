@@ -23,7 +23,7 @@ day-XXX-problem/
   trade-offs.md  ← decisions made and why, failure modes, migration triggers
   diagram.md     ← Mermaid architecture + sequence diagrams
 ```
-Use `TEMPLATE.md` as a starting point. Days 001–002 are fully solved — use them as a reference for style and depth.
+Use `TEMPLATE.md` as a starting point. Days 001–006 are fully solved — use them as a reference for style and depth.
 
 ---
 

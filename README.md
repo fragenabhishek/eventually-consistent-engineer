@@ -15,9 +15,10 @@ A hands-on repository for learning and interview preparation covering **Java Des
 │   │                       Iterator, Mediator, Interpreter
 │   └── structural/       # Adapter, Bridge, Composite, Decorator, Facade, Flyweight, Proxy
 │
-├── SystemDesign/          # Daily system design practice (HLD)
+├── SystemDesign/          # Daily system design practice (20-day roadmap)
 │   ├── day-001-tiny-url/
-│   └── day-002-file-sharing/
+│   ├── ...
+│   └── day-020-ecommerce/
 │
 ├── Design_Patterns.md               # Complete GoF pattern tracker (23/23 done)
 ├── LLD_Design_Patterns_Story.md     # All 23 GoF patterns explained as stories
@@ -90,12 +91,13 @@ Each day folder contains: `README.md` (problem + requirements), `design.md` (HLD
 
 | Day | Problem | Status |
 |-----|---------|--------|
-| 001 | [URL Shortener (TinyURL)](SystemDesign/day-001-tiny-url/README.md) | ✅ Done (full design) |
-| 002 | [File Sharing (Pastebin)](SystemDesign/day-002-file-sharing/README.md) | ✅ Done (full design) |
-| 003 | [Cloud Storage (Dropbox)](SystemDesign/day-003-dropbox/README.md) | 📋 Requirements ready — design it! |
-| 004 | [Video Streaming (YouTube)](SystemDesign/day-004-youtube/README.md) | 📋 Requirements ready — design it! |
+| 001 | [URL Shortener (TinyURL)](SystemDesign/day-001-tiny-url/README.md) | ✅ Fully solved |
+| 002 | [File Sharing (Pastebin)](SystemDesign/day-002-file-sharing/README.md) | ✅ Fully solved |
+| 003 | [Cloud Storage (Dropbox)](SystemDesign/day-003-dropbox/README.md) | ✅ Fully solved |
+| 004 | [Video Streaming (YouTube)](SystemDesign/day-004-youtube/README.md) | ✅ Fully solved |
 | 005 | [Netflix (Streaming + CDN)](SystemDesign/day-005-netflix/README.md) | ✅ Fully solved |
-| 006–020 | [Full roadmap (all requirements written)](SystemDesign/README.md) | 📋 Requirements ready — design it! |
+| 006 | [Instagram (Photo Feed)](SystemDesign/day-006-instagram/README.md) | ✅ Fully solved |
+| 007–020 | [Full roadmap (all requirements written)](SystemDesign/README.md) | 📋 Requirements ready — design it! |
 
 ---
 
