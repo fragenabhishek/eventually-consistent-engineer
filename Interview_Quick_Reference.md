@@ -13,6 +13,7 @@
 | Java 8+ | [Modern Java](#modern-java) |
 | Multithreading | [Concurrency](#concurrency) |
 | Spring Boot | [Spring & Spring Boot](#spring--spring-boot) |
+| Spring Debugging | [Spring Boot Debugging Scenarios](#spring-boot-debugging-scenarios) |
 | Microservices | [Microservices](#microservices) |
 | Kafka | [Kafka & Messaging](#kafka--messaging) |
 | Databases | [Databases](#databases) |
@@ -175,6 +176,110 @@ Filter chain intercepts every request. `UsernamePasswordAuthenticationFilter` ex
 
 **Q: How do you make a Spring Boot app production-ready?**  
 Actuator (health, metrics, info endpoints), structured logging (JSON + tracing IDs), external configuration (env vars / Vault), graceful shutdown, readiness + liveness probes, connection pool tuning (HikariCP), circuit breakers.
+
+---
+
+# Spring Boot Debugging Scenarios
+
+**1) Your Spring Boot application starts returning 500 errors after deployment. How will you debug it?**  
+Start from evidence: check logs, Actuator health, and deployment diff (`env`, config, image tag). Reproduce one failing API with correlation ID.  
+**Example:** 500 appears only in prod after deploy; logs show `NullPointerException` in mapper because `FEATURE_X_ENABLED=true` in prod activated code path not tested locally. Fix by null-safe mapping + integration test under prod-like profile.
+
+**2) You face `BeanCreationException` during application startup. What could be wrong?**  
+Common causes: missing dependency bean, invalid `@Value` property, constructor cycle, or exception inside `@PostConstruct`.  
+**Example:** `@Value("${jwt.secret}")` missing in prod config causes startup failure. Add required property, fail-fast validation via `@ConfigurationProperties` + `@Validated`.
+
+**3) Your service throws `NoSuchBeanDefinitionException` in production but works locally. How will you fix it?**  
+Check profile-conditional beans (`@Profile`, `@ConditionalOnProperty`) and package scanning boundaries.  
+**Example:** local runs with `dev` profile where mock bean exists; prod uses `prod` and bean is absent. Create prod implementation bean and add profile-specific test.
+
+**4) You get `CircularDependencyException` between beans. How will you resolve it?**  
+Break bidirectional dependency by extracting an interface, introducing orchestration service, or event-based interaction.  
+**Example:** `OrderService -> PaymentService -> OrderService`. Move shared logic to `OrderPaymentCoordinator`; both services depend on coordinator-facing abstractions, not each other.
+
+**5) Your API throws `HttpMessageNotReadableException` for valid requests. How will you debug it?**  
+Validate request `Content-Type`, DTO field types, Jackson config, and date/enum formats.  
+**Example:** client sends `"amount":"100"` while DTO expects `BigDecimal` but custom deserializer rejects string. Accept string format or enforce numeric payload in API contract.
+
+**6) You observe `LazyInitializationException` in production. How will you fix it?**  
+Do not rely on Open Session in View. Fetch needed associations inside transaction (`JOIN FETCH`, entity graph) and map to DTO.  
+**Example:** controller accesses `order.getItems()` after transaction closed. Fix in service: `findOrderWithItems(orderId)` and return DTO.
+
+**7) Your application fails due to incorrect configuration properties. How will you manage configs properly?**  
+Use typed `@ConfigurationProperties`, validation, environment-specific files, and secrets manager.  
+**Example:** typo `payment.timout` silently ignored. Move to `PaymentProperties` class with `@Validated` so startup fails if `timeout` is missing/invalid.
+
+**8) You get `DataIntegrityViolationException` while saving data. What could be the issue?**  
+Usually unique key, foreign key, not-null, or length constraint violation. Inspect root SQL exception and failed values.  
+**Example:** duplicate email insert violates unique index. Handle with business check + catch-and-map to 409 Conflict.
+
+**9) Your service throws `TransactionRequiredException` during updates. How will you handle transactions?**  
+Ensure write methods run inside `@Transactional`, and avoid self-invocation bypassing proxy.  
+**Example:** `updateStatus()` called from same class private method without proxy interception. Move to separate transactional service or call through bean proxy.
+
+**10) Your API response time suddenly increases after enabling logging. How will you optimize it?**  
+Reduce sync/verbose logging, switch to async appenders, avoid logging large payloads, and sample debug logs.  
+**Example:** full request/response body logging adds 120ms p95. Log only metadata (`path`, `status`, `latency`, `traceId`) and sample 1% payload logs.
+
+**11) You see memory leaks in your Spring Boot application. How will you detect and fix them?**  
+Capture heap dump, analyze dominator tree (MAT/YourKit), track object growth with GC logs and metrics.  
+**Example:** static `Map<String, SessionData>` never evicts. Replace with Caffeine cache (TTL + max size) and close resources/listeners.
+
+**12) Your application fails to connect to the database intermittently. How will you debug it?**  
+Check DB/network errors, connection pool settings, max connections, and timeout mismatches.  
+**Example:** Hikari `maxLifetime` > DB idle timeout, causing stale sockets. Set `maxLifetime` lower than DB timeout and tune `connectionTimeout`.
+
+**13) You face timeout issues while calling another service. How will you handle it?**  
+Configure connect/read timeouts, retries with backoff+jitter, circuit breaker, and fallback path.  
+**Example:** downstream p99 spikes to 4s; your timeout is 10s causing thread pile-up. Set 1s timeout + 2 retries + fallback cached response.
+
+**14) Your application fails due to incorrect environment configuration. How will you manage profiles?**  
+Use strict profile strategy (`dev`, `staging`, `prod`), immutable config per environment, and startup validation.  
+**Example:** prod accidentally starts with `dev` profile. Enforce profile via deployment manifest and fail startup if forbidden profile in prod.
+
+**15) You observe duplicate requests being processed. How will you ensure idempotency?**  
+Use idempotency key (header/body), unique constraint, and request state store.  
+**Example:** payment API retried by client creates two charges. Store `(idempotencyKey, response)` and return original response for retries.
+
+**16) Your service crashes due to unhandled exceptions. How will you implement global exception handling?**  
+Add `@ControllerAdvice` for API errors, map known exceptions to stable codes, and keep fallback 500 handler.  
+**Example:** `IllegalArgumentException` bubbles up and crashes request path. Map to 400 with error code `VALIDATION_ERROR`.
+
+**17) You see high thread usage in your application. How will you optimize it?**  
+Inspect thread dump, identify blocked/waiting threads, tune pools, and remove blocking calls from request threads.  
+**Example:** unbounded async executor creates thousands of threads. Replace with bounded `ThreadPoolTaskExecutor` and queue limits.
+
+**18) Your scheduled job runs multiple times unexpectedly. How will you fix it?**  
+In multi-instance deployment, each pod runs `@Scheduled` unless coordinated. Use distributed lock or single-job runner.  
+**Example:** 3 pods execute nightly settlement 3 times. Add ShedLock with DB lock table so only one instance runs at a time.
+
+**19) Your application fails during deployment due to dependency conflicts. How will you resolve it?**  
+Check dependency tree, align versions via BOM, and exclude conflicting transitive dependencies.  
+**Example:** `NoSuchMethodError` from mixed Jackson versions. Import Spring Boot BOM and remove explicit old Jackson dependency.
+
+**20) You observe inconsistent data due to concurrent transactions. How will you fix it?**  
+Choose proper isolation, optimistic/pessimistic locking, and retry on conflict where safe.  
+**Example:** lost update on inventory decrement. Add version column (`@Version`) and retry conflict path.
+
+**21) Your logs are insufficient to debug issues. How will you improve logging?**  
+Adopt structured JSON logs, include `traceId/spanId/userId`, log at boundaries, and standardize error fields.  
+**Example:** add MDC filter that injects `traceId` into every log line and response header, enabling request-level tracing.
+
+**22) Your API Gateway returns errors due to downstream failures. How will you handle it?**  
+Implement per-route timeout, circuit breaker, fallback responses, and health-aware routing.  
+**Example:** user-profile service down returns 500 for all pages. Gateway serves partial response with cached profile summary and warning flag.
+
+**23) Your application becomes unresponsive under load. How will you debug it?**  
+Correlate CPU, GC, thread dumps, DB pool saturation, and slow query logs under load test.  
+**Example:** p99 latency explodes because DB pool exhausted (50/50 active, long SQL). Add indexes, reduce transaction time, and tune pool/concurrency limits.
+
+**24) You need to deploy a new version without downtime. How will you achieve it?**  
+Use rolling or blue-green deployment with readiness probes, backward-compatible DB changes, and canary verification.  
+**Example:** deploy `v2` to 10% traffic, compare error rate/latency, then ramp to 100%; keep rollback switch ready.
+
+**25) Your application behaves differently in production vs local. How will you approach debugging?**  
+Diff runtime conditions: profile, env vars, JVM flags, external dependencies, data shape, and traffic patterns. Reproduce with prod-like setup.  
+**Example:** local uses in-memory DB and no cache; prod uses Postgres + Redis causing stale-read race. Reproduce in staging with same topology and fix cache invalidation.
 
 ---
 

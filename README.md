@@ -78,6 +78,7 @@ Each pattern lives in a single file with a detailed header comment (Intent, Prob
 | Guide | What It Covers | Best For |
 |-------|---------------|----------|
 | [Interview_Quick_Reference.md](Interview_Quick_Reference.md) | Rapid-fire Q&A cheat sheet: Java, Spring, Kafka, DB, System Design, Behavioral | **Night before an interview** |
+| [Spring_Debugging_Playbook.md](Spring_Debugging_Playbook.md) | Production debugging matrix for 25 Spring Boot incident scenarios with fixes and prevention | **On-call prep + Spring troubleshooting rounds** |
 | [Design_Patterns.md](Design_Patterns.md) | Complete GoF tracker — all 23/23 patterns implemented | Pattern status tracker |
 | [LLD_Design_Patterns_Story.md](LLD_Design_Patterns_Story.md) | All 23 GoF patterns as stories with code sketches and real-world examples | LLD interview prep |
 | [HLD_Story.md](HLD_Story.md) | Scalability, caching, CAP theorem, message queues, 7 system design case studies | HLD concept deep-dive |
