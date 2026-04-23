@@ -102,18 +102,6 @@ Each day folder contains: `README.md` (problem + requirements), `design.md` (HLD
 
 ---
 
-## How to Run
-
-This project uses an IntelliJ IDEA module (`DesignPatterns.iml`) with no external build tool required.
-
-**Option 1 — IntelliJ IDEA (recommended)**
-1. Open the project root in IntelliJ IDEA.
-2. IntelliJ auto-detects the module and marks `src/main/java` as the sources root.
-3. Navigate to any pattern file and click the green **Run** arrow next to its `main()` method.
-
-**Option 2 — Command line (javac + java)**
-```bash
-# From the project root
 javac -d out src/main/java/com/fragenabhishek/designpatterns/creational/DatabaseConnection.java
 java -cp out com.fragenabhishek.designpatterns.creational.DatabaseConnection
 ```
