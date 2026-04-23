@@ -101,9 +101,3 @@ Each day folder contains: `README.md` (problem + requirements), `design.md` (HLD
 | 007–020 | [Full roadmap (all requirements written)](SystemDesign/README.md) | 📋 Requirements ready — design it! |
 
 ---
-
-javac -d out src/main/java/com/fragenabhishek/designpatterns/creational/DatabaseConnection.java
-java -cp out com.fragenabhishek.designpatterns.creational.DatabaseConnection
-```
-
-> **Tip:** Each file is self-contained — just compile and run the file of interest. No dependencies beyond the JDK.
